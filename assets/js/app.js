@@ -1,7 +1,7 @@
 import { SAMPLE_CHARACTERS } from './sampleCharacters.js';
 
 const STORAGE_KEY = 'wod_1to1_sheet_v3';
-const SHARE_DOMAIN_PLACEHOLDER = 'https://wod20-cs-tool.vercel.app/';
+const SHARE_DOMAIN_PLACEHOLDER = 'https://wod20-charsheet-tool.vercel.app/';
 const DEFAULT_MF_ROWS = 5;
 const DEFAULT_COMBAT_ROWS = 6;
 let lastSharedSnapshot = '';

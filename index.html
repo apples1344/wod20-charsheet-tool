@@ -298,10 +298,10 @@ textarea.sheet-area:focus { border-color: #777; }
     page-break-inside: avoid;
   }
   .pdf-share-btn {
-    display: inline-flex !important;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 18px;
+    display: inline-block !important;
+    padding: 10px 20px;
+    line-height: 1;
+    text-align: center;
     background: #1a1a1a !important;
     color: #ffffff !important;
     border: 1.5px solid #000000 !important;
@@ -451,10 +451,7 @@ textarea.sheet-area:focus { border-color: #777; }
     <div class="wraith-shadow-block mt-3"><div class="section-title-sm">S H A D O W</div><div class="row"><div class="col"><div class="text-row"><span class="text-label">Psyche:</span><input type="text" class="field-input-dotted" id="wraith_psyche"></div><div class="text-row"><span class="text-label">Archetype:</span><input type="text" class="field-input-dotted" id="wraith_archetype"></div></div><div class="col"><div class="text-row"><span class="text-label">Shadowguide:</span><input type="text" class="field-input-dotted" id="wraith_shadowguide"></div><div class="pool-box mt-2"><div class="pool-title">Psyche Willpower</div><div class="dots-container" data-id="wraith_psyche_wp" data-val="0"><span class="dot" data-idx="1"></span><span class="dot" data-idx="2"></span><span class="dot" data-idx="3"></span><span class="dot" data-idx="4"></span><span class="dot" data-idx="5"></span><span class="dot" data-idx="6"></span><span class="dot" data-idx="7"></span><span class="dot" data-idx="8"></span><span class="dot" data-idx="9"></span><span class="dot" data-idx="10"></span></div></div></div></div><div class="row mt-2"><div class="col"><div class="pool-title">Thorns</div><textarea class="sheet-area" rows="2" oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'" id="wraith_thorns" style=""></textarea></div><div class="col"><div class="pool-title">Angst</div><div class="dots-container" data-id="wraith_angst" data-val="0"><span class="dot" data-idx="1"></span><span class="dot" data-idx="2"></span><span class="dot" data-idx="3"></span><span class="dot" data-idx="4"></span><span class="dot" data-idx="5"></span><span class="dot" data-idx="6"></span><span class="dot" data-idx="7"></span><span class="dot" data-idx="8"></span><span class="dot" data-idx="9"></span><span class="dot" data-idx="10"></span></div><div class="boxes-container" data-id="wraith_angst_sq" data-val="0"><span class="square-box" data-idx="1"></span><span class="square-box" data-idx="2"></span><span class="square-box" data-idx="3"></span><span class="square-box" data-idx="4"></span><span class="square-box" data-idx="5"></span><span class="square-box" data-idx="6"></span><span class="square-box" data-idx="7"></span><span class="square-box" data-idx="8"></span><span class="square-box" data-idx="9"></span><span class="square-box" data-idx="10"></span></div></div><div class="col"><div class="pool-title">Dark Passions</div><textarea class="sheet-area" rows="2" oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'" id="wraith_darkpassions" style=""></textarea></div></div></div>
     <div class="row mt-3"><div class="col"><div class="section-title-sm">Visuals & Notes</div><textarea class="sheet-area" rows="2" oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'" id="wraith_visuals" style=""></textarea></div><div class="col"><div class="section-title-sm">Character Portrait</div><div class="portrait-box" id="wraith_portraitContainer"><span class="portraitPlaceholder">Upload Image Below</span><img src="" class="portrait-preview" id="wraith_portraitImg"></div><div class="portrait-controls no-print"><input type="text" class="field-input-solid w-100" id="wraith_portrait_url" placeholder="https://..."><button type="button" class="btn uploadPortraitBtn" data-target="wraith">Upload</button><button type="button" class="btn clearPortraitBtn" data-target="wraith">Clear</button></div></div></div></div>
     <div id="pdfShareContainer" class="pdf-share-container">
-      <a id="pdfShareLink" class="pdf-share-btn" href="https://wod20-cs-tool.vercel.app/" target="_blank" rel="noopener noreferrer">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-        <span>Open Interactive Character Sheet</span>
-      </a>
+      <a id="pdfShareLink" class="pdf-share-btn" href="https://wod20-charsheet-tool.vercel.app/" target="_blank" rel="noopener noreferrer">OPEN INTERACTIVE CHARACTER SHEET</a>
     </div>
   </main>
 
@@ -2789,7 +2786,7 @@ const SAMPLE_CHARACTERS = {
 };
 
 const STORAGE_KEY = 'wod_1to1_sheet_v3';
-const SHARE_DOMAIN_PLACEHOLDER = 'https://wod20-cs-tool.vercel.app/';
+const SHARE_DOMAIN_PLACEHOLDER = 'https://wod20-charsheet-tool.vercel.app/';
 const DEFAULT_MF_ROWS = 5;
 const DEFAULT_COMBAT_ROWS = 6;
 let lastSharedSnapshot = '';

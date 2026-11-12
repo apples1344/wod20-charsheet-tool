@@ -288,10 +288,10 @@ textarea.sheet-area:focus { border-color: #777; }
     page-break-inside: avoid;
   }
   .pdf-share-btn {
-    display: inline-flex !important;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 18px;
+    display: inline-block !important;
+    padding: 10px 20px;
+    line-height: 1;
+    text-align: center;
     background: #1a1a1a !important;
     color: #ffffff !important;
     border: 1.5px solid #000000 !important;
