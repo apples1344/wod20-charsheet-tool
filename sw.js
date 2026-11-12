@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wod20-sheet-cache-v16';
+const CACHE_NAME = 'wod20-sheet-cache-v17';
 const CORE_ASSETS = [
   './',
   './index.html'
@@ -31,15 +31,14 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        if (response && response.status === 200 && response.type === 'basic') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
-        return response;
-      }).catch(() => caches.match('./index.html'));
-    })
+    fetch(event.request).then((response) => {
+      if (response && response.status === 200 && response.type === 'basic') {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+      }
+      return response;
+    }).catch(() =>
+      caches.match(event.request, { ignoreSearch: true }).then((cached) => cached || caches.match('./index.html'))
+    )
   );
 });

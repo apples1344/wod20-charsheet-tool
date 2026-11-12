@@ -1040,7 +1040,7 @@ function hardResetWebsite() {
 
   lastSharedSnapshot = '';
   const pdfLink = document.getElementById('pdfShareLink');
-  if (pdfLink) pdfLink.href = getShareBaseUrl();
+  if (pdfLink) pdfLink.href = getPdfShareBaseUrl();
   if (window.location.hash) {
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
   }
@@ -1144,7 +1144,16 @@ function getShareBaseUrl() {
   if (isLocal) {
     return SHARE_DOMAIN_PLACEHOLDER.replace(/\/+$/, '') + '/';
   }
-  return origin + pathname;
+  const cleanPath = pathname.replace(/\/index\.html$/i, '/');
+  return origin + cleanPath;
+}
+
+function getPdfShareBaseUrl() {
+  const base = getShareBaseUrl();
+  const tag = Date.now().toString(36);
+  const currentSearch = window.location.search || '';
+  const param = currentSearch === `?s=${tag}` ? `s=${tag}x` : `s=${tag}`;
+  return `${base}?${param}`;
 }
 
 const V3_SPLATS = ['mortal', 'vampire', 'werewolf', 'mage', 'changeling', 'wraith'];
@@ -1443,7 +1452,7 @@ function applyShareHashToPage(finalHash, jsonStr) {
   } catch (e) {}
   const pdfLink = document.getElementById('pdfShareLink');
   if (pdfLink) {
-    pdfLink.href = shareUrl;
+    pdfLink.href = getPdfShareBaseUrl() + finalHash;
   }
   lastSharedSnapshot = jsonStr;
   return shareUrl;
