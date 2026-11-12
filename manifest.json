@@ -1,0 +1,22 @@
+{
+  "name": "WoD 20th Anniversary Character Sheet",
+  "short_name": "WoD20 Sheet",
+  "description": "Zero-dependency client-side character sheet for World of Darkness 20th Anniversary Edition.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#8b0000",
+  "icons": [
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230a0a0a'/><path d='M50 15 C50 15 25 50 25 70 A25 25 0 0 0 75 70 C75 50 50 15 50 15 Z' fill='%238b0000'/></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "./assets/img/dark_pack_logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
