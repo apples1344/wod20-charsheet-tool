@@ -7,7 +7,316 @@
   <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230a0a0a'/><path d='M50 15 C50 15 25 50 25 70 A25 25 0 0 0 75 70 C75 50 50 15 50 15 Z' fill='%238b0000'/></svg>">
   <meta name="theme-color" content="#8b0000">
   <link rel="manifest" href="./manifest.json">
-  <link rel="stylesheet" href="./assets/css/style.css">
+  <style>
+:root {
+  --bg-color: #121212;
+  --card-bg: #1e1e1e;
+  --border-color: #333333;
+  --accent-color: #8b0000;
+  --accent-hover: #a80000;
+  --accent-border: #a80000;
+  --text-color: #e4e4e4;
+  --dot-color: #e4e4e4;
+  --font-serif: "Georgia", "Times New Roman", serif;
+  --font-sans: "Helvetica Neue", Arial, sans-serif;
+}
+body[data-splat="mortal"] { --accent-color: #3f5873; --accent-hover: #4e6d8f; --accent-border: #5c7fa6; }
+body[data-splat="vampire"] { --accent-color: #8b0000; --accent-hover: #a80000; --accent-border: #b31212; }
+body[data-splat="werewolf"] { --accent-color: #34631e; --accent-hover: #417d26; --accent-border: #519930; }
+body[data-splat="mage"] { --accent-color: #5b2c83; --accent-hover: #7038a1; --accent-border: #8445ba; }
+body[data-splat="changeling"] { --accent-color: #197367; --accent-hover: #218f80; --accent-border: #29ab99; }
+body[data-splat="wraith"] { --accent-color: #385566; --accent-hover: #466a80; --accent-border: #57829c; }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background-color: var(--bg-color); color: var(--text-color);
+  font-family: var(--font-sans); font-size: 13px; line-height: 1.3; padding-bottom: 50px;
+}
+.app-bar {
+  position: sticky; top: 0; z-index: 1000; background: #0a0a0a; color: #fff;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 16px; border-bottom: 3px solid var(--accent-color);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6); flex-wrap: wrap; gap: 8px;
+  transition: border-color 0.2s ease;
+}
+.app-brand { display: flex; align-items: center; gap: 10px; }
+.app-bar h1 { font-family: var(--font-serif); font-size: 16px; letter-spacing: 2px; text-transform: uppercase; color: #eaeaea; }
+.autosave-badge { font-size: 10px; color: #9e9e9e; background: #1f1f1f; border: 1px solid #383838; padding: 2px 7px; border-radius: 10px; }
+.autosave-badge.saved { color: #8fd19e; border-color: #2e5939; }
+
+.quick-nav { display: flex; gap: 4px; align-items: center; background: #161616; padding: 3px 5px; border-radius: 4px; border: 1px solid #333; }
+.quick-nav-btn { background: transparent; border: 1px solid transparent; color: #bbb; font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 3px; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+.quick-nav-btn:hover { background: #262626; color: #fff; border-color: #4a4a4a; }
+.quick-nav-btn.active { background: var(--accent-color); color: #fff; border-color: var(--accent-border); }
+
+.app-controls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.control-label { color: #aaa; font-size: 11px; font-weight: bold; }
+.btn {
+  background: #262626; color: #f0f0f0; border: 1px solid #4a4a4a; padding: 5px 10px;
+  font-size: 11px; font-weight: bold; border-radius: 4px; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+.btn:hover { background: #363636; border-color: #777; }
+.btn-accent { background: var(--accent-color); border-color: var(--accent-border); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-danger { background: #331919; border-color: #662828; color: #f3b8b8; }
+.btn-danger:hover { background: #4a2020; }
+select.btn option { background: #1e1e1e; color: #fff; }
+select.btn optgroup { background: #111; color: #e6b800; font-style: normal; font-weight: bold; }
+.hidden-input { display: none; }
+.sheet-wrapper { max-width: 960px; margin: 20px auto; background: var(--card-bg); border: 2px solid var(--border-color); box-shadow: 0 6px 28px rgba(0,0,0,0.45); padding: 25px 30px; }
+.wod-header { text-align: center; margin-bottom: 15px; position: relative; scroll-margin-top: calc(var(--app-bar-height, 56px) + 20px); }
+.wod-header h2 { font-family: var(--font-serif); font-size: 28px; letter-spacing: 4px; font-weight: 900; text-transform: uppercase; color: var(--text-color); }
+.wod-divider { height: 3px; background: var(--text-color); margin: 8px 0 16px; position: relative; }
+.wod-divider::after { content: "♦ ♦ ♦"; position: absolute; top: -9px; left: 50%; transform: translateX(-50%); background: var(--card-bg); color: var(--text-color); padding: 0 10px; font-size: 12px; letter-spacing: 3px; }
+.section-title { font-family: var(--font-serif); font-size: 16px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; text-align: center; border-bottom: 2px solid var(--text-color); margin-bottom: 12px; padding-bottom: 3px; }
+.section-title-sm { font-family: var(--font-serif); font-size: 14px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid var(--text-color); margin-bottom: 8px; padding-bottom: 2px; }
+.sub-col-title { text-align: center; margin-bottom: 8px; font-family: var(--font-serif); font-weight: bold; }
+.row { display: flex; gap: 15px; margin-bottom: 15px; width:100%; }
+.col { flex: 1; min-width: 0; }
+.w-100 { width: 100%; }
+.mt-1 { margin-top: 5px; } .mt-2 { margin-top: 10px; } .mt-3 { margin-top: 15px; } .mt-4 { margin-top: 25px; }
+.mb-1 { margin-bottom: 5px; } .mb-2 { margin-bottom: 10px; }
+.text-row { display: flex; align-items: baseline; margin-bottom: 4px; }
+.text-label { font-family: var(--font-serif); font-weight: bold; font-size: 13px; margin-right: 6px; white-space: nowrap; color: #cccccc; }
+.field-input-dotted { flex: 1; min-width: 0; border: none; border-bottom: 1px dotted #666; font-family: var(--font-sans); font-size: 13px; background: transparent; outline: none; color: var(--text-color); }
+.field-input-dotted:focus { border-bottom-color: #bbb; }
+.field-input-solid { flex: 1; min-width: 0; border: none; border-bottom: 1px solid #666; font-family: var(--font-sans); font-size: 13px; background: transparent; outline: none; color: var(--text-color); }
+.trait-row { display: flex; align-items: center; margin-bottom: 3px; }
+.trait-flex-row { display: flex; align-items: center; margin-bottom: 3px; }
+.trait-name-input { flex: 1; min-width: 0; border: none; border-bottom: 1px solid #3a3a3a; background: transparent; font-size: 12px; outline: none; color: var(--text-color); margin-right: 4px; }
+.trait-name-input:hover, .trait-name-input:focus { border-bottom-color: #999; }
+.trait-label { font-size: 12px; white-space: nowrap; }
+
+.trait-spec-input {
+  width: 26px; min-width: 0; border: none; border-bottom: 1px dotted transparent;
+  background: transparent; font-size: 10px; font-style: italic; color: #bdbdbd;
+  margin-left: 4px; padding: 0 2px; outline: none; opacity: 0.22; text-align: center;
+  transition: width 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+}
+.trait-row:hover .trait-spec-input:placeholder-shown,
+.trait-flex-row:hover .trait-spec-input:placeholder-shown { opacity: 0.65; width: 34px; border-bottom-color: #555; }
+.trait-spec-input:focus,
+.trait-spec-input:not(:placeholder-shown) {
+  width: 84px; max-width: 96px; opacity: 1; font-size: 11px; text-align: left;
+  border-bottom-color: #777; color: #d8d8d8;
+}
+body.mode-10-dot .trait-spec-input:focus,
+body.mode-10-dot .trait-spec-input:not(:placeholder-shown) {
+  width: 66px; max-width: 74px;
+}
+
+.trait-leader { flex: 1; border-bottom: 2px dotted #444; margin: 0 8px; position: relative; top: -2px; min-width: 8px; }
+.dots-container, .boxes-container { display: inline-flex; gap: 3px; align-items: center; cursor: pointer; user-select: none; padding-left: 5px; flex-shrink: 0; flex-wrap: wrap; }
+body.mode-10-dot .dots-container { gap: 2px; }
+body.mode-10-dot .dot { width: 9.5px; height: 9.5px; }
+.dot { width: 11px; height: 11px; border: 1.5px solid var(--dot-color); border-radius: 50%; display: inline-block; outline: none; }
+.square-box { width: 12px; height: 12px; border: 1.5px solid #777; display: inline-block; background: #262626; outline: none; }
+.dot:hover, .square-box:hover { transform: scale(1.15); }
+.dot.filled { background-color: var(--dot-color); box-shadow: inset 0 0 0 12px var(--dot-color) !important; }
+.square-box.filled::after { content: "X"; font-weight: bold; font-size:10px; line-height:10px; display:block; text-align:center; color: var(--text-color); }
+.dot:focus-visible, .square-box:focus-visible, .health-box:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+.dot-scalable-10 { display: none; }
+body.mode-10-dot .dot-scalable-10 { display: inline-block; }
+.pool-box { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.pool-box .dots-container, .pool-box .boxes-container { padding-left: 0; justify-content: center; }
+.pool-box .boxes-container { margin-top: 4px; }
+.pool-title { font-family: var(--font-serif); font-size: 12px; font-weight: bold; margin-bottom: 3px; color: #cccccc; }
+
+.health-controls { display: flex; align-items: center; gap: 6px; }
+.wound-badge {
+  font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 10px;
+  background: #252525; color: #9e9e9e; border: 1px solid #444; white-space: nowrap;
+}
+.wound-badge.penalty-low { background: #382c14; color: #f5c96b; border-color: #705620; }
+.wound-badge.penalty-high { background: #3d1616; color: #ff8f8f; border-color: #7a2626; }
+
+.health-table { width: 100%; border-collapse: collapse; }
+.health-table td, .health-table th { padding: 3px; font-size: 12px; text-align: left; }
+.ht-label { width: 60%; } .ht-pen { text-align: right !important; padding-right: 10px !important; }
+.health-box { width: 16px; height: 16px; border: 1.5px solid #777; text-align: center; line-height: 13px; font-weight: bold; font-size: 13px; cursor: pointer; user-select: none; background: #262626; color: var(--text-color); outline: none; }
+.sheet-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+.sheet-table th { border-bottom: 2px solid var(--text-color); font-family: var(--font-serif); font-size: 11px; text-transform: uppercase; padding: 4px; text-align: left; }
+.sheet-table td { border-bottom: 1px solid #3d3d3d; padding: 4px; }
+.sheet-table input { width: 100%; border: none; background: transparent; font-size: 12px; outline: none; color: var(--text-color); }
+.armor-block { border: 1px solid #444; padding: 10px; margin-top: 10px; background: #232323; }
+.wraith-shadow-block { background: #141414; color: #e0e0e0; border: 1px solid #444; padding: 14px; margin-top: 15px; }
+.wraith-shadow-block .section-title-sm { border-bottom-color: #666; color: #fff; }
+.wraith-shadow-block .text-label, .wraith-shadow-block .pool-title { color: #aaa; }
+textarea.sheet-area { width: 100%; min-height: 44px; border: 1px solid #444; border-radius: 3px; padding: 6px 8px; font-family: var(--font-sans); font-size: 12px; line-height: 1.35; resize: vertical; background: #252525; color: var(--text-color); outline: none; box-sizing: border-box; }
+textarea.sheet-area:focus { border-color: #777; }
+.portrait-box { border: 2px dashed #555; height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #252525; overflow: hidden; position: relative; color: #888; }
+.portrait-preview { width: 100%; height: 100%; object-fit: cover; display: none; }
+.portrait-controls { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+.toast-container { position: fixed; bottom: 18px; right: 18px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast { background: #1a1a1a; color: #f5f5f5; border-left: 4px solid var(--accent-color); padding: 10px 14px; border-radius: 4px; font-size: 12px; opacity: 0; transform: translateY(8px); transition: opacity 0.2s ease, transform 0.2s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+.toast.show { opacity: 1; transform: translateY(0); }
+
+.dark-pack-footer {
+  background: #0a0a0a; color: #aaa; font-family: var(--font-sans); font-size: 11px;
+  padding: 20px 16px; margin-top: 30px; border-top: 2px solid var(--border-color); text-align: center;
+}
+.footer-content { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.dark-pack-logo { max-width: 150px; height: auto; opacity: 0.85; transition: opacity 0.2s; }
+.dark-pack-logo:hover { opacity: 1; }
+.footer-text p { margin: 4px 0; line-height: 1.4; }
+.footer-text a { color: #ccc; text-decoration: underline; }
+.footer-text a:hover { color: #fff; }
+
+.section-header-flex { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--text-color); margin-bottom: 8px; padding-bottom: 2px; }
+.section-header-flex .section-title-sm { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.section-header-flex.adv-sub-header { border-bottom: none; justify-content: center; gap: 6px; }
+.section-header-flex.adv-sub-header .sub-col-title { flex: 1; text-align: center; }
+.btn-sm { padding: 2px 7px; font-size: 10px; }
+.td-action { width: 24px; text-align: center; padding: 2px !important; }
+.btn-icon-remove { background: transparent; border: 1px solid transparent; color: #888; cursor: pointer; font-size: 14px; line-height: 1; padding: 1px 5px; border-radius: 3px; transition: color 0.15s, border-color 0.15s, background 0.15s; }
+.btn-icon-remove:hover { color: #ff6b6b; border-color: #662828; background: #2b1616; }
+
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 3000; }
+.modal-content { background: var(--card-bg); padding: 25px; border: 2px solid var(--border-color); border-radius: 6px; text-align: center; max-width: 400px; }
+.modal-content h3 { font-family: var(--font-serif); margin-bottom: 10px; color: var(--text-color); }
+.modal-content p { margin-bottom: 20px; color: #aaa; }
+.modal-actions { display: flex; gap: 15px; justify-content: center; }
+
+.drop-overlay {
+  position: fixed; inset: 0; background: rgba(10, 10, 10, 0.85);
+  z-index: 4000; display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.drop-box {
+  border: 3px dashed var(--accent-border); background: var(--card-bg);
+  padding: 36px 48px; border-radius: 10px; text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+}
+.drop-box h3 { font-family: var(--font-serif); font-size: 20px; margin-bottom: 8px; color: #fff; }
+.drop-box p { color: #bbb; font-size: 13px; }
+
+
+.guide-panel {
+  position: fixed; bottom: 80px; right: 18px; width: 320px; max-height: calc(100vh - 150px);
+  background: var(--card-bg); border: 2px solid var(--accent-border); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.7); z-index: 2000; display: none; flex-direction: column;
+  overflow: hidden;
+}
+.guide-panel.open { display: flex; animation: slideUp 0.2s ease-out; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+.guide-header {
+  display: flex; justify-content: space-between; align-items: center;
+  background: #111; padding: 10px 14px; border-bottom: 1px solid var(--border-color);
+}
+.guide-header h3 { font-family: var(--font-serif); font-size: 14px; color: var(--text-color); margin: 0; }
+.guide-tally {
+  background: #161616; padding: 8px 14px; border-bottom: 1px solid var(--border-color);
+  font-size: 11px; line-height: 1.45; color: #bbb; flex-shrink: 0;
+}
+.guide-tally-title {
+  font-family: var(--font-serif); font-size: 10px; text-transform: uppercase;
+  letter-spacing: 1px; color: #888; margin-bottom: 4px; font-weight: bold;
+}
+.guide-tally-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+.guide-tally-row:last-child { margin-bottom: 0; }
+.guide-tally-label { color: #aaa; font-weight: bold; }
+.guide-tally-val { color: #f0f0f0; font-variant-numeric: tabular-nums; }
+.guide-tally-total { color: #8fd19e; font-weight: bold; margin-left: 4px; }
+.guide-content { padding: 14px; overflow-y: auto; font-size: 12px; line-height: 1.4; color: #ccc; }
+.guide-content h4 { font-family: var(--font-serif); font-size: 13px; color: var(--text-color); margin: 12px 0 4px; border-bottom: 1px dotted #555; padding-bottom: 2px; }
+.guide-content h4:first-child { margin-top: 0; }
+.guide-content ul { padding-left: 18px; margin-bottom: 8px; }
+.guide-content li { margin-bottom: 4px; }
+.guide-content strong { color: #fff; }
+.guide-cost-grid {
+  width: 100%; border-collapse: collapse; margin: 4px 0 8px; font-size: 11px;
+}
+.guide-cost-grid th {
+  text-align: left; color: #9e9e9e; font-size: 10px; text-transform: uppercase;
+  border-bottom: 1px solid #444; padding: 2px 4px;
+}
+.guide-cost-grid th:last-child,
+.guide-cost-grid td:last-child { text-align: right; font-variant-numeric: tabular-nums; color: #eaeaea; }
+.guide-cost-grid td { padding: 2px 4px; border-bottom: 1px solid #2a2a2a; color: #ccc; }
+.guide-cost-grid tr:last-child td { border-bottom: none; }
+.guide-note { display: block; color: #9a9a9a; font-size: 11px; margin-top: 1px; }
+
+.guide-toggle-btn {
+  position: fixed; bottom: 20px; right: 20px; width: 44px; height: 44px;
+  border-radius: 50%; z-index: 2000; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 0;
+}
+.pdf-share-container { display: none; }
+
+@media screen and (max-width: 768px) {
+  .guide-panel { width: calc(100vw - 36px); bottom: 74px; }
+}
+
+@media screen and (max-width: 768px) { .row { flex-direction: column; } }
+@media print {
+  body { background: #fff !important; color: #000 !important; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  .app-bar, .no-print, .toast-container, .modal-overlay, .drop-overlay { display: none !important; }
+  .sheet-wrapper { background: #fff !important; border: none; box-shadow: none; margin: 0; padding: 0; }
+
+  .wod-header.page-break-before {
+    page-break-before: always;
+    break-before: page;
+    margin-top: 40px !important;
+  }
+
+  .row { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; gap: 15px !important; }
+  .row.merits-flaws-row { flex-direction: row !important; align-items: flex-start !important; }
+  .merit-table, .flaw-table { table-layout: fixed !important; }
+  .section-header-flex { border-bottom-color: #000 !important; }
+  .section-header-flex.adv-sub-header { border-bottom: none !important; }
+  .pool-box, .armor-block, .wraith-shadow-block, .portrait-box, .sheet-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .col { flex: 1 !important; min-width: 0 !important; }
+  input, textarea.sheet-area, .health-box, .square-box { color: #000 !important; background: #fff !important; border-color: #000 !important; }
+  textarea.sheet-area { min-height: 28px !important; overflow: hidden !important; resize: none !important; }
+
+  .trait-spec-input:placeholder-shown { display: none !important; }
+  .trait-spec-input:not(:placeholder-shown) {
+    display: inline-block !important; width: auto !important; max-width: 95px !important;
+    border: none !important; font-style: italic !important; color: #222 !important;
+  }
+  .wound-badge { background: #fff !important; color: #000 !important; border-color: #000 !important; }
+
+  .wod-divider { background: #000 !important; }
+  .wod-divider::after { background: #fff !important; color: #000 !important; }
+  .section-title, .section-title-sm, .wod-header h2 { border-bottom-color: #000 !important; color: #000 !important; }
+  .text-label, .pool-title { color: #000 !important; }
+  .trait-leader { border-bottom-color: #999 !important; }
+  .dot { border-color: #000 !important; }
+  .dot.filled { background-color: #000 !important; box-shadow: inset 0 0 0 12px #000 !important; }
+  .square-box.filled::after { color: #000 !important; }
+  .armor-block, .wraith-shadow-block { background: #fff !important; border-color: #000 !important; color: #000 !important; }
+  .wraith-shadow-block .section-title-sm { border-bottom-color: #000 !important; color: #000 !important; }
+  .wraith-shadow-block .text-label, .wraith-shadow-block .pool-title { color: #000 !important; }
+  .pdf-share-container {
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    margin-top: 22px;
+    padding-top: 14px;
+    border-top: 1px dashed #999;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .pdf-share-btn {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    background: #1a1a1a !important;
+    color: #ffffff !important;
+    border: 1.5px solid #000000 !important;
+    border-radius: 5px;
+    font-family: var(--font-serif);
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    text-decoration: none !important;
+  }
+  .dark-pack-footer { background: #fff !important; color: #333 !important; border-top: 1px solid #000 !important; }
+  .footer-text a { color: #000 !important; }
+}
+  </style>
 </head>
 <body>
   <header class="app-bar no-print">
@@ -142,7 +451,7 @@
     <div class="wraith-shadow-block mt-3"><div class="section-title-sm">S H A D O W</div><div class="row"><div class="col"><div class="text-row"><span class="text-label">Psyche:</span><input type="text" class="field-input-dotted" id="wraith_psyche"></div><div class="text-row"><span class="text-label">Archetype:</span><input type="text" class="field-input-dotted" id="wraith_archetype"></div></div><div class="col"><div class="text-row"><span class="text-label">Shadowguide:</span><input type="text" class="field-input-dotted" id="wraith_shadowguide"></div><div class="pool-box mt-2"><div class="pool-title">Psyche Willpower</div><div class="dots-container" data-id="wraith_psyche_wp" data-val="0"><span class="dot" data-idx="1"></span><span class="dot" data-idx="2"></span><span class="dot" data-idx="3"></span><span class="dot" data-idx="4"></span><span class="dot" data-idx="5"></span><span class="dot" data-idx="6"></span><span class="dot" data-idx="7"></span><span class="dot" data-idx="8"></span><span class="dot" data-idx="9"></span><span class="dot" data-idx="10"></span></div></div></div></div><div class="row mt-2"><div class="col"><div class="pool-title">Thorns</div><textarea class="sheet-area" rows="2" oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'" id="wraith_thorns" style=""></textarea></div><div class="col"><div class="pool-title">Angst</div><div class="dots-container" data-id="wraith_angst" data-val="0"><span class="dot" data-idx="1"></span><span class="dot" data-idx="2"></span><span class="dot" data-idx="3"></span><span class="dot" data-idx="4"></span><span class="dot" data-idx="5"></span><span class="dot" data-idx="6"></span><span class="dot" data-idx="7"></span><span class="dot" data-idx="8"></span><span class="dot" data-idx="9"></span><span class="dot" data-idx="10"></span></div><div class="boxes-container" data-id="wraith_angst_sq" data-val="0"><span class="square-box" data-idx="1"></span><span class="square-box" data-idx="2"></span><span class="square-box" data-idx="3"></span><span class="square-box" data-idx="4"></span><span class="square-box" data-idx="5"></span><span class="square-box" data-idx="6"></span><span class="square-box" data-idx="7"></span><span class="square-box" data-idx="8"></span><span class="square-box" data-idx="9"></span><span class="square-box" data-idx="10"></span></div></div><div class="col"><div class="pool-title">Dark Passions</div><textarea class="sheet-area" rows="2" oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'" id="wraith_darkpassions" style=""></textarea></div></div></div>
     <div class="row mt-3"><div class="col"><div class="section-title-sm">Visuals & Notes</div><textarea class="sheet-area" rows="2" oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'" id="wraith_visuals" style=""></textarea></div><div class="col"><div class="section-title-sm">Character Portrait</div><div class="portrait-box" id="wraith_portraitContainer"><span class="portraitPlaceholder">Upload Image Below</span><img src="" class="portrait-preview" id="wraith_portraitImg"></div><div class="portrait-controls no-print"><input type="text" class="field-input-solid w-100" id="wraith_portrait_url" placeholder="https://..."><button type="button" class="btn uploadPortraitBtn" data-target="wraith">Upload</button><button type="button" class="btn clearPortraitBtn" data-target="wraith">Clear</button></div></div></div></div>
     <div id="pdfShareContainer" class="pdf-share-container">
-      <a id="pdfShareLink" class="pdf-share-btn" href="https://wod20-sheet.example.com/" target="_blank" rel="noopener noreferrer">
+      <a id="pdfShareLink" class="pdf-share-btn" href="https://wod20-charsheet-tool.vercel.app/" target="_blank" rel="noopener noreferrer">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
         <span>Open Interactive Character Sheet</span>
       </a>
@@ -152,7 +461,7 @@
   <footer class="dark-pack-footer">
     <div class="footer-content">
       <a href="https://www.paradoxinteractive.com/games/world-of-darkness/community/dark-pack-agreement" target="_blank" rel="noopener noreferrer">
-        <img src="./assets/img/dark_pack_logo.png" alt="World of Darkness Dark Pack Logo" class="dark-pack-logo">
+        <img src="./assets/img/dark_pack_logo.png" alt="World of Darkness Dark Pack Logo" class="dark-pack-logo" onerror="this.style.display='none'">
       </a>
       <div class="footer-text">
         <p>Portions of the materials are the copyrights and trademarks of Paradox Interactive AB, and are used with permission. All rights reserved. For more information please visit <a href="https://worldofdarkness.com" target="_blank" rel="noopener noreferrer">worldofdarkness.com</a>.</p>
@@ -217,6 +526,4303 @@
   </button>
 
   <div class="toast-container" id="toastContainer"></div>
-  <script type="module" src="./assets/js/app.js"></script>
+  <script>
+const SAMPLE_CHARACTERS = {
+  "mortal_detective": {
+    "splat": "mortal",
+    "isTenDotMode": false,
+    "inputs": {
+      "mortal_char_name": "Marcus Vance",
+      "mortal_char_nature": "Architect",
+      "mortal_char_chronicle": "Midnight City",
+      "mortal_char_player": "Sample",
+      "mortal_char_demeanor": "Curmudgeon",
+      "mortal_char_concept": "Hardboiled Private Investigator",
+      "mortal_adv_0_0_name": "Psychic Phenomena (Danger Sense)",
+      "mortal_adv_1_0_name": "Allies (Freelance Researcher)",
+      "mortal_adv_1_1_name": "Contacts (Police & Informants)",
+      "mortal_adv_1_2_name": "Resources (Private Agency)",
+      "mortal_adv_1_3_name": "Status (Local P.I.)",
+      "mortal_p2_custom": "",
+      "mortal_combat_0_0": ".38 Snub Revolver",
+      "mortal_combat_0_1": "6",
+      "mortal_combat_0_2": "4L",
+      "mortal_combat_0_3": "12 yds",
+      "mortal_combat_0_4": "3",
+      "mortal_combat_0_5": "6",
+      "mortal_combat_0_6": "Pocket",
+      "mortal_combat_1_0": "Brawl (Fist)",
+      "mortal_combat_1_1": "6",
+      "mortal_combat_1_2": "Str B",
+      "mortal_combat_1_3": "Close",
+      "mortal_combat_1_4": "—",
+      "mortal_combat_1_5": "—",
+      "mortal_combat_1_6": "None",
+      "mortal_armor_class": "Trench Coat",
+      "mortal_armor_rating": "1",
+      "mortal_armor_penalty": "0",
+      "mortal_exp_bgs": "Contacts: Police Desk Sergeant, Pawn Broker.\nAllies: Tech Hacker assisting with phone records.",
+      "mortal_gear": ".38 snubnose, spare speedloader, lockpick set, pocket notebook, audio recorder.",
+      "mortal_locations": "Second-floor walk-up studio apartment above a dry-cleaner's.",
+      "mortal_history": "Former precinct homicide detective forced out of the department after a cover-up. Now runs a private agency investigating the strange cases the police ignore.",
+      "mortal_desc": "Age: 39 | Hair: Dark brown, receding | Eyes: Steely grey | Height: 6'1\" | Weight: 195 lbs | Race: Caucasian | Nationality: American",
+      "mortal_char_affiliation": "Vance Investigations",
+      "mortal_char_occupation": "Private Detective",
+      "mortal_char_drive": "Truth / Justice",
+      "mortal_merit_0_name": "Iron Will",
+      "mortal_merit_0_type": "Mental",
+      "mortal_merit_0_cost": "3 pt.",
+      "mortal_merit_1_name": "Common Sense",
+      "mortal_merit_1_type": "Mental",
+      "mortal_merit_1_cost": "1 pt.",
+      "mortal_flaw_0_name": "Nightmares",
+      "mortal_flaw_0_type": "Mental",
+      "mortal_flaw_0_cost": "1 pt.",
+      "mortal_flaw_1_name": "Curiosity",
+      "mortal_flaw_1_type": "Mental",
+      "mortal_flaw_1_cost": "2 pt.",
+      "mortal_armor_description": "Heavy canvas coat",
+      "mortal_attr_per_spec": "Shadowing",
+      "mortal_attr_wit_spec": "Interrogation",
+      "mortal_abi_2_investigation_spec": "Forensics"
+    },
+    "dots": {
+      "mortal_attr_str": 2,
+      "mortal_attr_dex": 3,
+      "mortal_attr_sta": 3,
+      "mortal_attr_cha": 2,
+      "mortal_attr_man": 3,
+      "mortal_attr_app": 2,
+      "mortal_attr_per": 4,
+      "mortal_attr_int": 3,
+      "mortal_attr_wit": 4,
+      "mortal_abi_0_alertness": 3,
+      "mortal_abi_0_athletics": 2,
+      "mortal_abi_0_awareness": 3,
+      "mortal_abi_0_brawl": 2,
+      "mortal_abi_0_empathy": 3,
+      "mortal_abi_0_expression": 1,
+      "mortal_abi_0_intimidation": 2,
+      "mortal_abi_0_leadership": 1,
+      "mortal_abi_0_streetwise": 3,
+      "mortal_abi_0_subterfuge": 2,
+      "mortal_abi_1_crafts": 1,
+      "mortal_abi_1_drive": 3,
+      "mortal_abi_1_etiquette": 1,
+      "mortal_abi_1_firearms": 3,
+      "mortal_abi_1_larceny": 3,
+      "mortal_abi_1_melee": 1,
+      "mortal_abi_1_stealth": 2,
+      "mortal_abi_1_survival": 1,
+      "mortal_abi_1_technology": 1,
+      "mortal_abi_2_academics": 1,
+      "mortal_abi_2_computer": 2,
+      "mortal_abi_2_finance": 1,
+      "mortal_abi_2_investigation": 4,
+      "mortal_abi_2_law": 2,
+      "mortal_abi_2_medicine": 1,
+      "mortal_abi_2_occult": 2,
+      "mortal_abi_2_politics": 1,
+      "mortal_abi_2_science": 1,
+      "mortal_adv_0_0_dots": 3,
+      "mortal_adv_1_0_dots": 2,
+      "mortal_adv_1_1_dots": 3,
+      "mortal_adv_1_2_dots": 2,
+      "mortal_adv_1_3_dots": 1,
+      "mortal_adv_2_conscience": 3,
+      "mortal_adv_2_self-control": 3,
+      "mortal_adv_2_courage": 4,
+      "mortal_humanity_dots": 7,
+      "mortal_humanity_sq": 7,
+      "mortal_wp_dots": 6,
+      "mortal_wp_sq": 6,
+      "mortal_faith_dots": 0
+    },
+    "health": {}
+  },
+  "mortal_operative": {
+    "splat": "mortal",
+    "isTenDotMode": false,
+    "inputs": {
+      "mortal_char_name": "Dana Scott",
+      "mortal_char_nature": "Soldier",
+      "mortal_char_chronicle": "Operation Twilight",
+      "mortal_char_player": "Sample",
+      "mortal_char_demeanor": "Director",
+      "mortal_char_concept": "Federal Tactical Team Leader",
+      "mortal_adv_1_0_name": "Allies (Tactical Squad)",
+      "mortal_adv_1_1_name": "Contacts (Federal Agencies)",
+      "mortal_adv_1_2_name": "Resources (Government Budget)",
+      "mortal_adv_1_3_name": "Status (Field Commander)",
+      "mortal_p2_custom": "",
+      "mortal_combat_0_0": "SIG Sauer P226 (9mm)",
+      "mortal_combat_0_1": "6",
+      "mortal_combat_0_2": "4L",
+      "mortal_combat_0_3": "25 yds",
+      "mortal_combat_0_4": "3",
+      "mortal_combat_0_5": "15+1",
+      "mortal_combat_0_6": "Holster",
+      "mortal_combat_1_0": "M4A1 Carbine (5.56mm)",
+      "mortal_combat_1_1": "6",
+      "mortal_combat_1_2": "6L",
+      "mortal_combat_1_3": "150 yds",
+      "mortal_combat_1_4": "3",
+      "mortal_combat_1_5": "30",
+      "mortal_combat_1_6": "Sling",
+      "mortal_armor_class": "Class III Ballistic Vest",
+      "mortal_armor_rating": "2",
+      "mortal_armor_penalty": "1",
+      "mortal_exp_bgs": "Status: Special Affairs Division. Provides credentials, case files, and operational support.",
+      "mortal_gear": "SIG P226, tactical knife, night vision goggles, encrypted radio earpiece, trauma kit.",
+      "mortal_locations": "Suburban townhouse with reinforced doors, security cameras, and an anchored gun safe.",
+      "mortal_history": "Recruited from military special operations after surviving an ambush by unknown entities.",
+      "mortal_desc": "Age: 34 | Hair: Black, tied back | Eyes: Hazel | Height: 5'9\" | Weight: 155 lbs | Race: Caucasian | Nationality: American",
+      "mortal_char_affiliation": "Special Affairs Unit",
+      "mortal_char_occupation": "Field Team Leader",
+      "mortal_char_drive": "Duty / Protection",
+      "mortal_merit_0_name": "Iron Will",
+      "mortal_merit_0_type": "Mental",
+      "mortal_merit_0_cost": "3 pt.",
+      "mortal_merit_1_name": "Acute Sense (Hearing)",
+      "mortal_merit_1_type": "Physical",
+      "mortal_merit_1_cost": "1 pt.",
+      "mortal_flaw_0_name": "Nightmares",
+      "mortal_flaw_0_type": "Mental",
+      "mortal_flaw_0_cost": "1 pt.",
+      "mortal_armor_description": "Standard tactical body armor",
+      "mortal_attr_dex_spec": "Lightning Reflexes",
+      "mortal_attr_sta_spec": "Tireless",
+      "mortal_abi_0_athletics_spec": "Breaching",
+      "mortal_abi_1_firearms_spec": "CQB Tactics"
+    },
+    "dots": {
+      "mortal_attr_str": 3,
+      "mortal_attr_dex": 4,
+      "mortal_attr_sta": 4,
+      "mortal_attr_cha": 2,
+      "mortal_attr_man": 2,
+      "mortal_attr_app": 2,
+      "mortal_attr_per": 3,
+      "mortal_attr_int": 3,
+      "mortal_attr_wit": 3,
+      "mortal_abi_0_alertness": 3,
+      "mortal_abi_0_athletics": 4,
+      "mortal_abi_0_awareness": 2,
+      "mortal_abi_0_brawl": 3,
+      "mortal_abi_0_empathy": 1,
+      "mortal_abi_0_expression": 1,
+      "mortal_abi_0_intimidation": 3,
+      "mortal_abi_0_leadership": 3,
+      "mortal_abi_0_streetwise": 1,
+      "mortal_abi_0_subterfuge": 1,
+      "mortal_abi_1_crafts": 2,
+      "mortal_abi_1_drive": 3,
+      "mortal_abi_1_etiquette": 1,
+      "mortal_abi_1_firearms": 4,
+      "mortal_abi_1_larceny": 2,
+      "mortal_abi_1_melee": 2,
+      "mortal_abi_1_stealth": 3,
+      "mortal_abi_1_survival": 2,
+      "mortal_abi_1_technology": 2,
+      "mortal_abi_2_academics": 1,
+      "mortal_abi_2_computer": 2,
+      "mortal_abi_2_finance": 1,
+      "mortal_abi_2_investigation": 3,
+      "mortal_abi_2_law": 2,
+      "mortal_abi_2_medicine": 2,
+      "mortal_abi_2_occult": 1,
+      "mortal_abi_2_politics": 1,
+      "mortal_abi_2_science": 1,
+      "mortal_adv_1_0_dots": 3,
+      "mortal_adv_1_1_dots": 2,
+      "mortal_adv_1_2_dots": 2,
+      "mortal_adv_1_3_dots": 3,
+      "mortal_adv_2_conscience": 2,
+      "mortal_adv_2_self-control": 4,
+      "mortal_adv_2_courage": 5,
+      "mortal_humanity_dots": 6,
+      "mortal_humanity_sq": 6,
+      "mortal_wp_dots": 7,
+      "mortal_wp_sq": 7,
+      "mortal_faith_dots": 0
+    },
+    "health": {}
+  },
+  "mortal_vanhelsing": {
+    "splat": "mortal",
+    "isTenDotMode": false,
+    "inputs": {
+      "mortal_char_name": "Prof. Abraham Van Helsing",
+      "mortal_char_nature": "Judge",
+      "mortal_char_chronicle": "Victorian London",
+      "mortal_char_player": "Sample",
+      "mortal_char_demeanor": "Pedagogue",
+      "mortal_char_concept": "Master Vampire Hunter [Plot Device]",
+      "mortal_adv_0_0_name": "True Faith",
+      "mortal_adv_0_1_name": "Hedge Magic (Wards & Banishment)",
+      "mortal_adv_1_0_name": "Allies (Crew of Light)",
+      "mortal_adv_1_1_name": "Library (Occult Folios)",
+      "mortal_adv_1_2_name": "Status (Renowned Physician)",
+      "mortal_adv_1_3_name": "Resources (Medical Practice)",
+      "mortal_p2_custom": "Anti-Vampire Lore: Consecrated wafers, wild garlic, ash wood stakes, sunlight.",
+      "mortal_combat_0_0": "Ash Wood Stake",
+      "mortal_combat_0_1": "6",
+      "mortal_combat_0_2": "Str+1L",
+      "mortal_combat_0_3": "Melee",
+      "mortal_combat_0_4": "—",
+      "mortal_combat_0_5": "—",
+      "mortal_combat_0_6": "Coat",
+      "mortal_combat_1_0": "Webley .455 Revolver",
+      "mortal_combat_1_1": "6",
+      "mortal_combat_1_2": "5L",
+      "mortal_combat_1_3": "20 yds",
+      "mortal_combat_1_4": "2",
+      "mortal_combat_1_5": "6",
+      "mortal_combat_1_6": "Coat",
+      "mortal_armor_class": "Heavy Greatcoat",
+      "mortal_armor_rating": "1",
+      "mortal_armor_penalty": "0",
+      "mortal_exp_bgs": "Allies: Jonathan Harker, Dr. John Seward, Quincey Morris.\nLibrary: Extensive collection of Eastern European folklore and medical texts.",
+      "mortal_gear": "Gold crucifix, consecrated wafers, garlic blossoms, surgical bag, sharpened ash stakes.",
+      "mortal_locations": "University Study in Amsterdam; temporary lodgings in London.",
+      "mortal_history": "Dutch physician, philosopher, and metaphysician summoned to London who recognized the mark of the vampire and led the pursuit of Count Dracula.",
+      "mortal_desc": "Age: 58 | Hair: Reddish-grey | Eyes: Blue | Height: 5'10\" | Race: Caucasian | Nationality: Dutch",
+      "mortal_char_affiliation": "Independent Scholar",
+      "mortal_char_occupation": "Physician & Metaphysician",
+      "mortal_char_drive": "Destroy the Undead",
+      "mortal_merit_0_name": "Iron Will",
+      "mortal_merit_0_type": "Mental",
+      "mortal_merit_0_cost": "3 pt.",
+      "mortal_merit_1_name": "Natural Linguist",
+      "mortal_merit_1_type": "Mental",
+      "mortal_merit_1_cost": "2 pt.",
+      "mortal_flaw_0_name": "Obsession",
+      "mortal_flaw_0_type": "Mental",
+      "mortal_flaw_0_cost": "2 pt.",
+      "mortal_armor_description": "Thick Victorian wool",
+      "mortal_attr_cha_spec": "Commanding Presence",
+      "mortal_attr_per_spec": "Detail-Oriented",
+      "mortal_attr_int_spec": "Deductive Logic",
+      "mortal_attr_wit_spec": "Calm Under Pressure",
+      "mortal_abi_0_awareness_spec": "Vampiric Aura",
+      "mortal_abi_0_empathy_spec": "Hidden Motives",
+      "mortal_abi_0_leadership_spec": "Inspiring Resolve",
+      "mortal_abi_1_etiquette_spec": "Victorian Society",
+      "mortal_abi_2_academics_spec": "Classical History",
+      "mortal_abi_2_investigation_spec": "Autopsy Clues",
+      "mortal_abi_2_medicine_spec": "Hematology",
+      "mortal_abi_2_occult_spec": "Vampire Lore",
+      "mortal_abi_2_science_spec": "Chemistry"
+    },
+    "dots": {
+      "mortal_attr_str": 2,
+      "mortal_attr_dex": 3,
+      "mortal_attr_sta": 3,
+      "mortal_attr_cha": 4,
+      "mortal_attr_man": 3,
+      "mortal_attr_app": 2,
+      "mortal_attr_per": 4,
+      "mortal_attr_int": 5,
+      "mortal_attr_wit": 4,
+      "mortal_abi_0_alertness": 3,
+      "mortal_abi_0_awareness": 4,
+      "mortal_abi_0_empathy": 4,
+      "mortal_abi_0_expression": 3,
+      "mortal_abi_0_intimidation": 3,
+      "mortal_abi_0_leadership": 4,
+      "mortal_abi_0_subterfuge": 2,
+      "mortal_abi_1_crafts": 2,
+      "mortal_abi_1_etiquette": 4,
+      "mortal_abi_1_firearms": 2,
+      "mortal_abi_1_melee": 3,
+      "mortal_abi_1_survival": 2,
+      "mortal_abi_2_academics": 5,
+      "mortal_abi_2_investigation": 5,
+      "mortal_abi_2_law": 3,
+      "mortal_abi_2_medicine": 5,
+      "mortal_abi_2_occult": 5,
+      "mortal_abi_2_science": 4,
+      "mortal_adv_0_0_dots": 4,
+      "mortal_adv_0_1_dots": 3,
+      "mortal_adv_1_0_dots": 4,
+      "mortal_adv_1_1_dots": 4,
+      "mortal_adv_1_2_dots": 4,
+      "mortal_adv_1_3_dots": 3,
+      "mortal_adv_2_conscience": 4,
+      "mortal_adv_2_self-control": 4,
+      "mortal_adv_2_courage": 5,
+      "mortal_humanity_dots": 8,
+      "mortal_humanity_sq": 8,
+      "mortal_wp_dots": 9,
+      "mortal_wp_sq": 9,
+      "mortal_faith_dots": 4
+    },
+    "health": {}
+  },
+  "vampire_brujah": {
+    "splat": "vampire",
+    "isTenDotMode": false,
+    "inputs": {
+      "vampire_char_name": "Jax Morales",
+      "vampire_char_nature": "Rebel",
+      "vampire_char_clan": "Brujah",
+      "vampire_char_player": "Sample",
+      "vampire_char_demeanor": "Bravo",
+      "vampire_char_gen": "10th Generation",
+      "vampire_char_chronicle": "Anarch Rising",
+      "vampire_char_concept": "Anarch Street Enforcer",
+      "vampire_char_sire": "Elena Rostova",
+      "vampire_adv_0_0_name": "Potence",
+      "vampire_adv_0_1_name": "Celerity",
+      "vampire_adv_0_2_name": "Presence",
+      "vampire_adv_1_0_name": "Allies (Street Crew)",
+      "vampire_adv_1_1_name": "Contacts (Nightclub Promoter)",
+      "vampire_adv_1_2_name": "Domain (Industrial Docks)",
+      "vampire_adv_1_3_name": "Resources",
+      "vampire_path_name": "Humanity",
+      "vampire_path_bearing": "—",
+      "vampire_blood_per_turn": "1",
+      "vampire_weakness_box": "Short temper: +2 difficulty on rolls to resist frenzy.",
+      "vampire_exp_val": "12",
+      "vampire_p2_custom": "",
+      "vampire_combat_0_0": "Brawl (Potence Strike)",
+      "vampire_combat_0_1": "6",
+      "vampire_combat_0_2": "Str+2B",
+      "vampire_combat_0_3": "Close",
+      "vampire_combat_0_4": "—",
+      "vampire_combat_0_5": "—",
+      "vampire_combat_0_6": "None",
+      "vampire_combat_1_0": "Sawed-off 12ga Shotgun",
+      "vampire_combat_1_1": "6",
+      "vampire_combat_1_2": "8L",
+      "vampire_combat_1_3": "10 yds",
+      "vampire_combat_1_4": "1",
+      "vampire_combat_1_5": "2",
+      "vampire_combat_1_6": "Jacket",
+      "vampire_armor_class": "Heavy Leather Jacket",
+      "vampire_armor_rating": "1",
+      "vampire_armor_penalty": "0",
+      "vampire_exp_bgs": "Allies: Southside Street Crew providing daytime lookouts.",
+      "vampire_gear": "Sawed-off shotgun, heavy chain belt, brass knuckles, burner phone.",
+      "vampire_locations": "Converted loft above an abandoned auto repair shop.",
+      "vampire_history": "Embraced during the street unrest of the mid-90s. Jax carved out a niche defending Anarch turf from rival encroachments.",
+      "vampire_desc": "Age: 24 (Embraced 1995) | Hair: Black | Eyes: Dark brown | Height: 6'0\" | Weight: 190 lbs",
+      "vampire_merit_0_name": "Bruiser",
+      "vampire_merit_0_type": "Social",
+      "vampire_merit_0_cost": "1 pt.",
+      "vampire_merit_1_name": "Fast Reflexes",
+      "vampire_merit_1_type": "Physical",
+      "vampire_merit_1_cost": "2 pt.",
+      "vampire_flaw_0_name": "Short Fuse",
+      "vampire_flaw_0_type": "Mental",
+      "vampire_flaw_0_cost": "2 pt.",
+      "vampire_armor_description": "Reinforced motorcycle jacket",
+      "vampire_attr_str_spec": "Crushing Blows",
+      "vampire_attr_dex_spec": "Quick Reflexes",
+      "vampire_abi_0_brawl_spec": "Street Fighting"
+    },
+    "dots": {
+      "vampire_attr_str": 4,
+      "vampire_attr_dex": 4,
+      "vampire_attr_sta": 3,
+      "vampire_attr_cha": 3,
+      "vampire_attr_man": 2,
+      "vampire_attr_app": 2,
+      "vampire_attr_per": 2,
+      "vampire_attr_int": 2,
+      "vampire_attr_wit": 3,
+      "vampire_abi_0_alertness": 2,
+      "vampire_abi_0_athletics": 3,
+      "vampire_abi_0_awareness": 1,
+      "vampire_abi_0_brawl": 4,
+      "vampire_abi_0_empathy": 1,
+      "vampire_abi_0_expression": 3,
+      "vampire_abi_0_intimidation": 3,
+      "vampire_abi_0_leadership": 2,
+      "vampire_abi_0_streetwise": 3,
+      "vampire_abi_0_subterfuge": 1,
+      "vampire_abi_1_crafts": 1,
+      "vampire_abi_1_drive": 3,
+      "vampire_abi_1_firearms": 3,
+      "vampire_abi_1_larceny": 2,
+      "vampire_abi_1_melee": 3,
+      "vampire_abi_1_stealth": 2,
+      "vampire_abi_1_survival": 1,
+      "vampire_abi_2_academics": 1,
+      "vampire_abi_2_computer": 1,
+      "vampire_abi_2_investigation": 1,
+      "vampire_abi_2_law": 1,
+      "vampire_abi_2_medicine": 1,
+      "vampire_abi_2_occult": 1,
+      "vampire_abi_2_politics": 2,
+      "vampire_abi_2_technology": 1,
+      "vampire_adv_0_0_dots": 2,
+      "vampire_adv_0_1_dots": 2,
+      "vampire_adv_0_2_dots": 1,
+      "vampire_adv_1_0_dots": 3,
+      "vampire_adv_1_1_dots": 2,
+      "vampire_adv_1_2_dots": 1,
+      "vampire_adv_1_3_dots": 1,
+      "vampire_adv_2_conscience_/_conviction": 2,
+      "vampire_adv_2_self-control_/_instinct": 2,
+      "vampire_adv_2_courage": 5,
+      "vampire_path_dots": 5,
+      "vampire_wp_dots": 6,
+      "vampire_wp_sq": 6,
+      "vampire_blood_sq1": 10,
+      "vampire_blood_sq2": 3
+    },
+    "health": {}
+  },
+  "vampire_tremere": {
+    "splat": "vampire",
+    "isTenDotMode": false,
+    "inputs": {
+      "vampire_char_name": "Aaron Vance",
+      "vampire_char_nature": "Judge",
+      "vampire_char_clan": "Tremere",
+      "vampire_char_player": "Sample",
+      "vampire_char_demeanor": "Autocrat",
+      "vampire_char_gen": "10th Generation",
+      "vampire_char_chronicle": "Blood and Glass",
+      "vampire_char_concept": "Chantry Warlock",
+      "vampire_char_sire": "Magister Julian Thorne",
+      "vampire_adv_0_0_name": "Thaumaturgy (Path of Blood)",
+      "vampire_adv_0_1_name": "Auspex",
+      "vampire_adv_0_2_name": "Dominate",
+      "vampire_adv_1_0_name": "Generation",
+      "vampire_adv_1_1_name": "Mentor (Chantry Regent)",
+      "vampire_adv_1_2_name": "Resources (Rare Books)",
+      "vampire_adv_1_3_name": "Retainers (Gargoyle Sentinel)",
+      "vampire_path_name": "Humanity",
+      "vampire_path_bearing": "—",
+      "vampire_blood_per_turn": "1",
+      "vampire_weakness_box": "One step closer to being blood bound to the Council of Seven.",
+      "vampire_exp_val": "18",
+      "vampire_p2_custom": "Rituals: Defense of the Sacred Haven (Lv 1), Communicate with Kindred Sire (Lv 1), Ward vs. Ghouls (Lv 2).",
+      "vampire_combat_0_0": "Silver Ritual Dagger",
+      "vampire_combat_0_1": "6",
+      "vampire_combat_0_2": "Str+1L",
+      "vampire_combat_0_3": "Melee",
+      "vampire_combat_0_4": "—",
+      "vampire_combat_0_5": "—",
+      "vampire_combat_0_6": "Pocket",
+      "vampire_armor_class": "Heavy Overcoat",
+      "vampire_armor_rating": "1",
+      "vampire_armor_penalty": "0",
+      "vampire_exp_bgs": "Mentor: Access to the Chantry's ritual library and occult archives.",
+      "vampire_gear": "Silver ritual dagger, leather-bound grimoire, ward chalk, blood vials.",
+      "vampire_locations": "Private sanctum inside the local Tremere Chantry.",
+      "vampire_history": "Recruited from an esoteric university society after WWII. Aaron oversees ward maintenance and ritual research.",
+      "vampire_desc": "Age: 45 | Hair: Dark brown | Eyes: Piercing green | Height: 5'11\"",
+      "vampire_merit_0_name": "Eidetic Memory",
+      "vampire_merit_0_type": "Mental",
+      "vampire_merit_0_cost": "2 pt.",
+      "vampire_flaw_0_name": "Clan Enmity (Tzimisce)",
+      "vampire_flaw_0_type": "Social",
+      "vampire_flaw_0_cost": "2 pt.",
+      "vampire_armor_description": "Thick wool coat",
+      "vampire_attr_per_spec": "Mystic Scrutiny",
+      "vampire_attr_int_spec": "Arcane Theory",
+      "vampire_abi_2_academics_spec": "Hermetic History",
+      "vampire_abi_2_investigation_spec": "Occult Clues",
+      "vampire_abi_2_occult_spec": "Thaumaturgy"
+    },
+    "dots": {
+      "vampire_attr_str": 2,
+      "vampire_attr_dex": 2,
+      "vampire_attr_sta": 2,
+      "vampire_attr_cha": 3,
+      "vampire_attr_man": 3,
+      "vampire_attr_app": 2,
+      "vampire_attr_per": 4,
+      "vampire_attr_int": 5,
+      "vampire_attr_wit": 3,
+      "vampire_abi_0_alertness": 3,
+      "vampire_abi_0_athletics": 1,
+      "vampire_abi_0_awareness": 3,
+      "vampire_abi_0_brawl": 1,
+      "vampire_abi_0_empathy": 2,
+      "vampire_abi_0_expression": 2,
+      "vampire_abi_0_intimidation": 2,
+      "vampire_abi_0_leadership": 2,
+      "vampire_abi_0_streetwise": 1,
+      "vampire_abi_0_subterfuge": 3,
+      "vampire_abi_1_crafts": 2,
+      "vampire_abi_1_drive": 1,
+      "vampire_abi_1_etiquette": 3,
+      "vampire_abi_1_firearms": 1,
+      "vampire_abi_1_larceny": 1,
+      "vampire_abi_1_melee": 2,
+      "vampire_abi_1_stealth": 2,
+      "vampire_abi_2_academics": 4,
+      "vampire_abi_2_computer": 2,
+      "vampire_abi_2_finance": 2,
+      "vampire_abi_2_investigation": 4,
+      "vampire_abi_2_law": 3,
+      "vampire_abi_2_medicine": 2,
+      "vampire_abi_2_occult": 5,
+      "vampire_abi_2_politics": 3,
+      "vampire_abi_2_science": 2,
+      "vampire_abi_2_technology": 2,
+      "vampire_adv_0_0_dots": 3,
+      "vampire_adv_0_1_dots": 2,
+      "vampire_adv_0_2_dots": 1,
+      "vampire_adv_1_0_dots": 3,
+      "vampire_adv_1_1_dots": 3,
+      "vampire_adv_1_2_dots": 3,
+      "vampire_adv_1_3_dots": 1,
+      "vampire_adv_2_conscience_/_conviction": 2,
+      "vampire_adv_2_self-control_/_instinct": 4,
+      "vampire_adv_2_courage": 4,
+      "vampire_path_dots": 6,
+      "vampire_wp_dots": 7,
+      "vampire_wp_sq": 7,
+      "vampire_blood_sq1": 10,
+      "vampire_blood_sq2": 3
+    },
+    "health": {}
+  },
+  "vampire_dracula": {
+    "splat": "vampire",
+    "isTenDotMode": true,
+    "inputs": {
+      "vampire_char_name": "Count Dracula (Vlad Tepes)",
+      "vampire_char_nature": "Autocrat",
+      "vampire_char_clan": "Tzimisce",
+      "vampire_char_player": "Sample",
+      "vampire_char_demeanor": "Monster",
+      "vampire_char_gen": "5th Generation",
+      "vampire_char_chronicle": "Transylvanian Nights",
+      "vampire_char_concept": "Voivode & Lord of the Undead [Elder]",
+      "vampire_char_sire": "Unknown (Forced Embrace)",
+      "vampire_adv_0_0_name": "Animalism",
+      "vampire_adv_0_1_name": "Auspex",
+      "vampire_adv_0_2_name": "Dominate",
+      "vampire_adv_0_3_name": "Fortitude",
+      "vampire_adv_0_4_name": "Protean",
+      "vampire_adv_0_5_name": "Vicissitude",
+      "vampire_adv_1_0_name": "Domain (Borgo Pass)",
+      "vampire_adv_1_1_name": "Generation",
+      "vampire_adv_1_2_name": "Resources (Ancient Hoard)",
+      "vampire_adv_1_3_name": "Retainers (Three Brides)",
+      "vampire_path_name": "Humanity",
+      "vampire_path_bearing": "—",
+      "vampire_blood_per_turn": "8",
+      "vampire_weakness_box": "Must sleep surrounded by at least two handfuls of native Wallachian soil.",
+      "vampire_exp_val": "Centuries of Conquest",
+      "vampire_p2_custom": "Elder Powers: Control Weather, Wolf/Bat/Mist Shapeshifting, Horrid Form (Zulo).",
+      "vampire_combat_0_0": "Wallachian Broadsword",
+      "vampire_combat_0_1": "6",
+      "vampire_combat_0_2": "Str+3L",
+      "vampire_combat_0_3": "Melee",
+      "vampire_combat_0_4": "—",
+      "vampire_combat_0_5": "—",
+      "vampire_combat_0_6": "None",
+      "vampire_combat_1_0": "Brawl (Claws / Bite)",
+      "vampire_combat_1_1": "6",
+      "vampire_combat_1_2": "Str+1 Agg",
+      "vampire_combat_1_3": "Close",
+      "vampire_combat_1_4": "—",
+      "vampire_combat_1_5": "—",
+      "vampire_combat_1_6": "Natural",
+      "vampire_armor_class": "Voivode Dragon Plate",
+      "vampire_armor_rating": "4",
+      "vampire_armor_penalty": "1",
+      "vampire_exp_bgs": "Retainers: Three Vampire Brides and loyal Szgany servants.",
+      "vampire_gear": "Crimson velvet cloak, Wallachian broadsword, signet ring.",
+      "vampire_locations": "Castle Dracula high above the Borgo Pass.",
+      "vampire_history": "Born Vlad III, Prince of Wallachia, he forced his own Embrace in the late 15th century and seized elder power through diablerie.",
+      "vampire_desc": "Age: 595 | Hair: Silver-white | Eyes: Red | Height: 6'2\" | Race: Wallachian",
+      "vampire_merit_0_name": "Iron Will",
+      "vampire_merit_0_type": "Mental",
+      "vampire_merit_0_cost": "3 pt.",
+      "vampire_flaw_0_name": "Notoriety",
+      "vampire_flaw_0_type": "Social",
+      "vampire_flaw_0_cost": "3 pt.",
+      "vampire_armor_description": "Crimson muscle-cuirass armor",
+      "vampire_attr_str_spec": "Predatory Might",
+      "vampire_attr_dex_spec": "Preternatural Grace",
+      "vampire_attr_sta_spec": "Undying",
+      "vampire_attr_cha_spec": "Dark Majesty",
+      "vampire_attr_man_spec": "Subtle Coercion",
+      "vampire_attr_app_spec": "Noble Bearing",
+      "vampire_attr_per_spec": "Night Hunter",
+      "vampire_attr_int_spec": "Grand Strategy",
+      "vampire_attr_wit_spec": "Cunning",
+      "vampire_abi_0_alertness_spec": "Ambushes",
+      "vampire_abi_0_athletics_spec": "Acrobatics",
+      "vampire_abi_0_awareness_spec": "Supernatural Sense",
+      "vampire_abi_0_brawl_spec": "Claws & Fangs",
+      "vampire_abi_0_expression_spec": "Regal Rhetoric",
+      "vampire_abi_0_intimidation_spec": "Voivode Terror",
+      "vampire_abi_0_leadership_spec": "Commanding Legions",
+      "vampire_abi_0_subterfuge_spec": "Mortal Disguise",
+      "vampire_abi_1_animal_ken_spec": "Wolves & Bats",
+      "vampire_abi_1_etiquette_spec": "Old World Courts",
+      "vampire_abi_1_melee_spec": "Swords",
+      "vampire_abi_1_stealth_spec": "Mist & Shadow",
+      "vampire_abi_1_survival_spec": "Carpathian Wilds",
+      "vampire_abi_2_academics_spec": "Wallachian History",
+      "vampire_abi_2_finance_spec": "Old Wealth",
+      "vampire_abi_2_investigation_spec": "Spy Networks",
+      "vampire_abi_2_law_spec": "Feudal Dominion",
+      "vampire_abi_2_occult_spec": "Koldunic Lore",
+      "vampire_abi_2_politics_spec": "Kindred Intrigue"
+    },
+    "dots": {
+      "vampire_attr_str": 7,
+      "vampire_attr_dex": 6,
+      "vampire_attr_sta": 7,
+      "vampire_attr_cha": 6,
+      "vampire_attr_man": 6,
+      "vampire_attr_app": 4,
+      "vampire_attr_per": 6,
+      "vampire_attr_int": 6,
+      "vampire_attr_wit": 6,
+      "vampire_abi_0_alertness": 5,
+      "vampire_abi_0_athletics": 4,
+      "vampire_abi_0_awareness": 5,
+      "vampire_abi_0_brawl": 6,
+      "vampire_abi_0_empathy": 3,
+      "vampire_abi_0_expression": 4,
+      "vampire_abi_0_intimidation": 7,
+      "vampire_abi_0_leadership": 7,
+      "vampire_abi_0_streetwise": 3,
+      "vampire_abi_0_subterfuge": 6,
+      "vampire_abi_1_animal_ken": 6,
+      "vampire_abi_1_crafts": 2,
+      "vampire_abi_1_drive": 2,
+      "vampire_abi_1_etiquette": 5,
+      "vampire_abi_1_firearms": 2,
+      "vampire_abi_1_larceny": 3,
+      "vampire_abi_1_melee": 7,
+      "vampire_abi_1_performance": 3,
+      "vampire_abi_1_stealth": 6,
+      "vampire_abi_1_survival": 6,
+      "vampire_abi_2_academics": 5,
+      "vampire_abi_2_computer": 1,
+      "vampire_abi_2_finance": 4,
+      "vampire_abi_2_investigation": 4,
+      "vampire_abi_2_law": 5,
+      "vampire_abi_2_medicine": 3,
+      "vampire_abi_2_occult": 6,
+      "vampire_abi_2_politics": 6,
+      "vampire_abi_2_science": 3,
+      "vampire_abi_2_technology": 1,
+      "vampire_adv_0_0_dots": 7,
+      "vampire_adv_0_1_dots": 6,
+      "vampire_adv_0_2_dots": 7,
+      "vampire_adv_0_3_dots": 6,
+      "vampire_adv_0_4_dots": 7,
+      "vampire_adv_0_5_dots": 6,
+      "vampire_adv_1_0_dots": 6,
+      "vampire_adv_1_1_dots": 8,
+      "vampire_adv_1_2_dots": 6,
+      "vampire_adv_1_3_dots": 5,
+      "vampire_adv_2_conscience_/_conviction": 2,
+      "vampire_adv_2_self-control_/_instinct": 4,
+      "vampire_adv_2_courage": 5,
+      "vampire_path_dots": 5,
+      "vampire_wp_dots": 10,
+      "vampire_wp_sq": 10,
+      "vampire_blood_sq1": 10,
+      "vampire_blood_sq2": 10
+    },
+    "health": {}
+  },
+  "werewolf_ahroun": {
+    "splat": "werewolf",
+    "isTenDotMode": false,
+    "inputs": {
+      "werewolf_char_name": "Kallum Iron-Jaw",
+      "werewolf_char_breed": "Homid",
+      "werewolf_char_packname": "Northern Maw",
+      "werewolf_char_player": "Sample",
+      "werewolf_char_auspice": "Ahroun",
+      "werewolf_char_packtotem": "Fenris",
+      "werewolf_char_chronicle": "Rage Across the Rustbelt",
+      "werewolf_char_tribe": "Get of Fenris",
+      "werewolf_char_concept": "Pack Warrior",
+      "werewolf_adv_0_0_name": "Allies (Sept Hunters)",
+      "werewolf_adv_0_1_name": "Fetish (Silver Klaive)",
+      "werewolf_adv_0_2_name": "Pure Breed",
+      "werewolf_adv_0_3_name": "Totem (Fenris)",
+      "werewolf_adv_1_0_name": "Razor Claws",
+      "werewolf_adv_1_1_name": "Falling Touch",
+      "werewolf_adv_2_0_name": "Inspiration",
+      "werewolf_adv_2_1_name": "Resist Pain",
+      "werewolf_rank_val": "2 (Fostern)",
+      "werewolf_exp_val": "14",
+      "werewolf_p2_custom": "Rites: Rite of Talisman Dedication, Gathering for the Departed.",
+      "werewolf_combat_0_0": "Crinos Claws",
+      "werewolf_combat_0_1": "6",
+      "werewolf_combat_0_2": "Str+2 Agg",
+      "werewolf_combat_0_3": "Close",
+      "werewolf_combat_0_4": "—",
+      "werewolf_combat_0_5": "—",
+      "werewolf_combat_0_6": "Natural",
+      "werewolf_combat_1_0": "Silver Klaive",
+      "werewolf_combat_1_1": "6",
+      "werewolf_combat_1_2": "Str+3 Agg",
+      "werewolf_combat_1_3": "Melee",
+      "werewolf_combat_1_4": "—",
+      "werewolf_combat_1_5": "—",
+      "werewolf_combat_1_6": "Scabbard",
+      "werewolf_armor_class": "Flak Jacket",
+      "werewolf_armor_rating": "2",
+      "werewolf_armor_penalty": "1",
+      "werewolf_exp_bgs": "Fetish: Ancestral silver blade bound with a war-spirit.",
+      "werewolf_gear": "Klaive in leather sheath, heavy boots, hunting knife.",
+      "werewolf_locations": "Log cabin on the edge of the northern forest.",
+      "werewolf_history": "Kallum earned his Fostern rank defending the northern caern against Wyrm-tainted raiders.",
+      "werewolf_desc": "Age: 27 | Hair: Blonde, braided beard | Eyes: Amber | Height: 6'5\"",
+      "werewolf_merit_0_name": "Huge Size",
+      "werewolf_merit_0_type": "Physical",
+      "werewolf_merit_0_cost": "4 pt.",
+      "werewolf_flaw_0_name": "Short Fuse",
+      "werewolf_flaw_0_type": "Mental",
+      "werewolf_flaw_0_cost": "2 pt.",
+      "werewolf_armor_description": "Heavy Kevlar vest",
+      "werewolf_attr_str_spec": "Overpowering",
+      "werewolf_attr_dex_spec": "Combat Reflexes",
+      "werewolf_attr_sta_spec": "Unbreakable",
+      "werewolf_abi_0_athletics_spec": "Leaping",
+      "werewolf_abi_0_brawl_spec": "Claws & Jaws",
+      "werewolf_abi_0_intimidation_spec": "War Roar",
+      "werewolf_abi_0_primal-urge_spec": "Hunting",
+      "werewolf_abi_1_melee_spec": "Klaives"
+    },
+    "dots": {
+      "werewolf_attr_str": 4,
+      "werewolf_attr_dex": 4,
+      "werewolf_attr_sta": 4,
+      "werewolf_attr_cha": 3,
+      "werewolf_attr_man": 2,
+      "werewolf_attr_app": 2,
+      "werewolf_attr_per": 3,
+      "werewolf_attr_int": 2,
+      "werewolf_attr_wit": 3,
+      "werewolf_abi_0_alertness": 3,
+      "werewolf_abi_0_athletics": 4,
+      "werewolf_abi_0_brawl": 4,
+      "werewolf_abi_0_empathy": 1,
+      "werewolf_abi_0_expression": 1,
+      "werewolf_abi_0_intimidation": 4,
+      "werewolf_abi_0_leadership": 3,
+      "werewolf_abi_0_primal-urge": 4,
+      "werewolf_abi_0_streetwise": 2,
+      "werewolf_abi_0_subterfuge": 1,
+      "werewolf_abi_1_animal-ken": 1,
+      "werewolf_abi_1_crafts": 2,
+      "werewolf_abi_1_drive": 2,
+      "werewolf_abi_1_etiquette": 1,
+      "werewolf_abi_1_firearms": 3,
+      "werewolf_abi_1_larceny": 1,
+      "werewolf_abi_1_melee": 4,
+      "werewolf_abi_1_stealth": 2,
+      "werewolf_abi_1_survival": 3,
+      "werewolf_abi_2_academics": 1,
+      "werewolf_abi_2_enigmas": 2,
+      "werewolf_abi_2_investigation": 1,
+      "werewolf_abi_2_law": 1,
+      "werewolf_abi_2_medicine": 2,
+      "werewolf_abi_2_occult": 2,
+      "werewolf_abi_2_rituals": 2,
+      "werewolf_abi_2_technology": 1,
+      "werewolf_adv_0_0_dots": 1,
+      "werewolf_adv_0_1_dots": 3,
+      "werewolf_adv_0_2_dots": 3,
+      "werewolf_adv_0_3_dots": 2,
+      "werewolf_adv_1_0_dots": 1,
+      "werewolf_adv_1_1_dots": 1,
+      "werewolf_adv_2_0_dots": 1,
+      "werewolf_adv_2_1_dots": 2,
+      "werewolf_glory_dots": 3,
+      "werewolf_honor_dots": 2,
+      "werewolf_wisdom_dots": 1,
+      "werewolf_rage_dots": 5,
+      "werewolf_rage_sq": 5,
+      "werewolf_gnosis_dots": 3,
+      "werewolf_gnosis_sq": 3,
+      "werewolf_wp_dots": 6,
+      "werewolf_wp_sq": 6
+    },
+    "health": {}
+  },
+  "werewolf_ragabash": {
+    "splat": "werewolf",
+    "isTenDotMode": false,
+    "inputs": {
+      "werewolf_char_name": "Cipher",
+      "werewolf_char_breed": "Homid",
+      "werewolf_char_packname": "Data Miners",
+      "werewolf_char_player": "Sample",
+      "werewolf_char_auspice": "Ragabash",
+      "werewolf_char_packtotem": "Cockroach",
+      "werewolf_char_chronicle": "Silicon Moon",
+      "werewolf_char_tribe": "Glass Walkers",
+      "werewolf_char_concept": "Urban Cyber-Scout",
+      "werewolf_adv_0_0_name": "Allies (Netrunners)",
+      "werewolf_adv_0_1_name": "Fetish (Smart-Deck)",
+      "werewolf_adv_0_2_name": "Resources (Consulting)",
+      "werewolf_adv_1_0_name": "Control Simple Device",
+      "werewolf_adv_1_1_name": "Open Seal",
+      "werewolf_adv_2_0_name": "Jam Technology",
+      "werewolf_adv_2_1_name": "Diagnostics",
+      "werewolf_rank_val": "1 (Cliath)",
+      "werewolf_exp_val": "8",
+      "werewolf_p2_custom": "",
+      "werewolf_combat_0_0": "Glock 17 (9mm)",
+      "werewolf_combat_0_1": "6",
+      "werewolf_combat_0_2": "4L",
+      "werewolf_combat_0_3": "20 yds",
+      "werewolf_combat_0_4": "3",
+      "werewolf_combat_0_5": "17+1",
+      "werewolf_combat_0_6": "Holster",
+      "werewolf_combat_1_0": "Claws (Glabro/Crinos)",
+      "werewolf_combat_1_1": "6",
+      "werewolf_combat_1_2": "Str+2 Agg",
+      "werewolf_combat_1_3": "Close",
+      "werewolf_combat_1_4": "—",
+      "werewolf_combat_1_5": "—",
+      "werewolf_combat_1_6": "Natural",
+      "werewolf_armor_class": "None",
+      "werewolf_armor_rating": "0",
+      "werewolf_armor_penalty": "0",
+      "werewolf_exp_bgs": "Resources: Cybersecurity Consulting income.",
+      "werewolf_gear": "Ruggedized laptop, lockpick set, Glock 17, signal analyzer.",
+      "werewolf_locations": "Converted studio loft in the downtown tech district.",
+      "werewolf_history": "Grew up coding in Silicon Valley before uncovering a Wyrm-tainted shell corporation during a penetration test.",
+      "werewolf_desc": "Age: 23 | Hair: Black, undercut | Eyes: Dark hazel | Height: 5'10\"",
+      "werewolf_merit_0_name": "Computer Aptitude",
+      "werewolf_merit_0_type": "Mental",
+      "werewolf_merit_0_cost": "1 pt.",
+      "werewolf_flaw_0_name": "Overconfident",
+      "werewolf_flaw_0_type": "Mental",
+      "werewolf_flaw_0_cost": "1 pt.",
+      "werewolf_armor_description": "Street clothes",
+      "werewolf_attr_dex_spec": "Nimble Fingers",
+      "werewolf_attr_int_spec": "Systems Logic",
+      "werewolf_attr_wit_spec": "Quick Thinking",
+      "werewolf_abi_0_streetwise_spec": "Urban Turf",
+      "werewolf_abi_1_larceny_spec": "Electronic Locks",
+      "werewolf_abi_1_stealth_spec": "Camouflage",
+      "werewolf_abi_2_computer_spec": "Hacking",
+      "werewolf_abi_2_technology_spec": "Drone Surveillance"
+    },
+    "dots": {
+      "werewolf_attr_str": 2,
+      "werewolf_attr_dex": 4,
+      "werewolf_attr_sta": 3,
+      "werewolf_attr_cha": 3,
+      "werewolf_attr_man": 3,
+      "werewolf_attr_app": 2,
+      "werewolf_attr_per": 3,
+      "werewolf_attr_int": 4,
+      "werewolf_attr_wit": 4,
+      "werewolf_abi_0_alertness": 3,
+      "werewolf_abi_0_athletics": 3,
+      "werewolf_abi_0_brawl": 2,
+      "werewolf_abi_0_empathy": 2,
+      "werewolf_abi_0_expression": 2,
+      "werewolf_abi_0_intimidation": 1,
+      "werewolf_abi_0_leadership": 1,
+      "werewolf_abi_0_primal-urge": 2,
+      "werewolf_abi_0_streetwise": 4,
+      "werewolf_abi_0_subterfuge": 3,
+      "werewolf_abi_1_crafts": 3,
+      "werewolf_abi_1_drive": 2,
+      "werewolf_abi_1_etiquette": 1,
+      "werewolf_abi_1_firearms": 3,
+      "werewolf_abi_1_larceny": 4,
+      "werewolf_abi_1_melee": 1,
+      "werewolf_abi_1_performance": 1,
+      "werewolf_abi_1_stealth": 4,
+      "werewolf_abi_1_survival": 1,
+      "werewolf_abi_2_academics": 1,
+      "werewolf_abi_2_computer": 5,
+      "werewolf_abi_2_enigmas": 3,
+      "werewolf_abi_2_investigation": 3,
+      "werewolf_abi_2_law": 1,
+      "werewolf_abi_2_medicine": 1,
+      "werewolf_abi_2_occult": 2,
+      "werewolf_abi_2_rituals": 1,
+      "werewolf_abi_2_science": 2,
+      "werewolf_abi_2_technology": 4,
+      "werewolf_adv_0_0_dots": 2,
+      "werewolf_adv_0_1_dots": 2,
+      "werewolf_adv_0_2_dots": 3,
+      "werewolf_adv_1_0_dots": 1,
+      "werewolf_adv_1_1_dots": 1,
+      "werewolf_adv_2_0_dots": 1,
+      "werewolf_adv_2_1_dots": 2,
+      "werewolf_glory_dots": 1,
+      "werewolf_honor_dots": 1,
+      "werewolf_wisdom_dots": 3,
+      "werewolf_rage_dots": 2,
+      "werewolf_rage_sq": 2,
+      "werewolf_gnosis_dots": 4,
+      "werewolf_gnosis_sq": 4,
+      "werewolf_wp_dots": 6,
+      "werewolf_wp_sq": 6
+    },
+    "health": {}
+  },
+  "werewolf_elder": {
+    "splat": "werewolf",
+    "isTenDotMode": true,
+    "inputs": {
+      "werewolf_char_name": "Soren Storm-Breaker",
+      "werewolf_char_breed": "Homid",
+      "werewolf_char_packname": "Crown of Winter",
+      "werewolf_char_player": "Sample",
+      "werewolf_char_auspice": "Philodox",
+      "werewolf_char_packtotem": "Falcon",
+      "werewolf_char_chronicle": "Songs of the Sept",
+      "werewolf_char_tribe": "Silver Fangs",
+      "werewolf_char_concept": "Sept Master & Living Legend [Elder]",
+      "werewolf_adv_0_0_name": "Ancestors",
+      "werewolf_adv_0_1_name": "Fetish (Grand Klaive)",
+      "werewolf_adv_0_2_name": "Pure Breed",
+      "werewolf_adv_0_3_name": "Kinfolk",
+      "werewolf_adv_0_4_name": "Resources",
+      "werewolf_adv_1_0_name": "King of the Beasts",
+      "werewolf_adv_1_1_name": "Wall of Granite",
+      "werewolf_adv_1_2_name": "Geas",
+      "werewolf_adv_2_0_name": "Master of Fire",
+      "werewolf_adv_2_1_name": "Luna's Avenger",
+      "werewolf_adv_2_2_name": "Renew the Cycle",
+      "werewolf_rank_val": "5 (Elder)",
+      "werewolf_exp_val": "Living Legend",
+      "werewolf_p2_custom": "Rites: Rite of the Opened Caern, Rite of the Fetish, Rite of Summoning, Moot Rite.",
+      "werewolf_combat_0_0": "Ancestral Grand Klaive",
+      "werewolf_combat_0_1": "6",
+      "werewolf_combat_0_2": "Str+4 Agg",
+      "werewolf_combat_0_3": "Melee",
+      "werewolf_combat_0_4": "—",
+      "werewolf_combat_0_5": "—",
+      "werewolf_combat_0_6": "Scabbard",
+      "werewolf_combat_1_0": "Crinos Claws & Bite",
+      "werewolf_combat_1_1": "6",
+      "werewolf_combat_1_2": "Str+2 Agg",
+      "werewolf_combat_1_3": "Close",
+      "werewolf_combat_1_4": "—",
+      "werewolf_combat_1_5": "—",
+      "werewolf_combat_1_6": "Natural",
+      "werewolf_armor_class": "Spirit-Blessed Mail",
+      "werewolf_armor_rating": "3",
+      "werewolf_armor_penalty": "0",
+      "werewolf_exp_bgs": "Ancestors 5: Direct counsel from generations of Silver Fang heroes.\nPure Breed 5: Unmistakable royal Garou bearing.",
+      "werewolf_gear": "Grand Klaive of Falcon, silver torc, ancestral war-horn.",
+      "werewolf_locations": "The Mountain Caern of the Northern Ridge.",
+      "werewolf_history": "Veteran of a hundred Umbral campaigns, Soren serves as Master of the Sept and arbiter of the Litany across the entire protectorate.",
+      "werewolf_desc": "Age: 68 | Hair: White mane | Eyes: Piercing ice-blue | Height: 6'4\"",
+      "werewolf_merit_0_name": "Iron Will",
+      "werewolf_merit_0_type": "Mental",
+      "werewolf_merit_0_cost": "3 pt.",
+      "werewolf_merit_1_name": "Silver Tolerance",
+      "werewolf_merit_1_type": "Supernatural",
+      "werewolf_merit_1_cost": "7 pt.",
+      "werewolf_flaw_0_name": "Overconfident",
+      "werewolf_flaw_0_type": "Mental",
+      "werewolf_flaw_0_cost": "1 pt.",
+      "werewolf_armor_description": "Dedicated fetish hauberk",
+      "werewolf_attr_str_spec": "Crushing Grip",
+      "werewolf_attr_dex_spec": "Fluid Strikes",
+      "werewolf_attr_sta_spec": "Indomitable",
+      "werewolf_attr_cha_spec": "Regal Presence",
+      "werewolf_attr_man_spec": "Arbitration",
+      "werewolf_attr_app_spec": "Noble Bearing",
+      "werewolf_attr_per_spec": "Spirit Sight",
+      "werewolf_attr_int_spec": "Tactical Wisdom",
+      "werewolf_attr_wit_spec": "Cool-Headed",
+      "werewolf_abi_0_alertness_spec": "Ambushes",
+      "werewolf_abi_0_athletics_spec": "Mountain Terrain",
+      "werewolf_abi_0_brawl_spec": "Crinos Combat",
+      "werewolf_abi_0_empathy_spec": "Pack Bonds",
+      "werewolf_abi_0_expression_spec": "Howls & Oratory",
+      "werewolf_abi_0_intimidation_spec": "Alpha Glare",
+      "werewolf_abi_0_leadership_spec": "Warbands",
+      "werewolf_abi_0_primal-urge_spec": "Shifting Forms",
+      "werewolf_abi_0_subterfuge_spec": "Courtly Mask",
+      "werewolf_abi_1_animal-ken_spec": "Wolves & Raptors",
+      "werewolf_abi_1_etiquette_spec": "Sept Protocol",
+      "werewolf_abi_1_melee_spec": "Grand Klaives",
+      "werewolf_abi_1_performance_spec": "Moot Chants",
+      "werewolf_abi_1_stealth_spec": "Winter Woods",
+      "werewolf_abi_1_survival_spec": "Arctic Wilds",
+      "werewolf_abi_2_academics_spec": "Garou History",
+      "werewolf_abi_2_enigmas_spec": "Umbral Riddles",
+      "werewolf_abi_2_investigation_spec": "Wyrm Taint",
+      "werewolf_abi_2_law_spec": "The Litany",
+      "werewolf_abi_2_occult_spec": "Spirit Lore",
+      "werewolf_abi_2_rituals_spec": "Caern Rites"
+    },
+    "dots": {
+      "werewolf_attr_str": 6,
+      "werewolf_attr_dex": 5,
+      "werewolf_attr_sta": 6,
+      "werewolf_attr_cha": 7,
+      "werewolf_attr_man": 6,
+      "werewolf_attr_app": 5,
+      "werewolf_attr_per": 6,
+      "werewolf_attr_int": 6,
+      "werewolf_attr_wit": 6,
+      "werewolf_abi_0_alertness": 5,
+      "werewolf_abi_0_athletics": 5,
+      "werewolf_abi_0_brawl": 6,
+      "werewolf_abi_0_empathy": 5,
+      "werewolf_abi_0_expression": 5,
+      "werewolf_abi_0_intimidation": 6,
+      "werewolf_abi_0_leadership": 7,
+      "werewolf_abi_0_primal-urge": 6,
+      "werewolf_abi_0_streetwise": 2,
+      "werewolf_abi_0_subterfuge": 4,
+      "werewolf_abi_1_animal-ken": 5,
+      "werewolf_abi_1_crafts": 3,
+      "werewolf_abi_1_drive": 2,
+      "werewolf_abi_1_etiquette": 6,
+      "werewolf_abi_1_firearms": 3,
+      "werewolf_abi_1_larceny": 1,
+      "werewolf_abi_1_melee": 7,
+      "werewolf_abi_1_performance": 4,
+      "werewolf_abi_1_stealth": 4,
+      "werewolf_abi_1_survival": 6,
+      "werewolf_abi_2_academics": 5,
+      "werewolf_abi_2_computer": 1,
+      "werewolf_abi_2_enigmas": 6,
+      "werewolf_abi_2_investigation": 5,
+      "werewolf_abi_2_law": 6,
+      "werewolf_abi_2_medicine": 3,
+      "werewolf_abi_2_occult": 6,
+      "werewolf_abi_2_rituals": 7,
+      "werewolf_abi_2_science": 2,
+      "werewolf_abi_2_technology": 1,
+      "werewolf_adv_0_0_dots": 5,
+      "werewolf_adv_0_1_dots": 5,
+      "werewolf_adv_0_2_dots": 5,
+      "werewolf_adv_0_3_dots": 4,
+      "werewolf_adv_0_4_dots": 4,
+      "werewolf_adv_1_0_dots": 5,
+      "werewolf_adv_1_1_dots": 5,
+      "werewolf_adv_1_2_dots": 5,
+      "werewolf_adv_2_0_dots": 5,
+      "werewolf_adv_2_1_dots": 5,
+      "werewolf_adv_2_2_dots": 5,
+      "werewolf_glory_dots": 8,
+      "werewolf_honor_dots": 9,
+      "werewolf_wisdom_dots": 8,
+      "werewolf_rage_dots": 8,
+      "werewolf_rage_sq": 8,
+      "werewolf_gnosis_dots": 8,
+      "werewolf_gnosis_sq": 8,
+      "werewolf_wp_dots": 10,
+      "werewolf_wp_sq": 10
+    },
+    "health": {}
+  },
+  "mage_hermetic": {
+    "splat": "mage",
+    "isTenDotMode": false,
+    "inputs": {
+      "mage_char_name": "Justinian Croft",
+      "mage_char_nature": "Architect",
+      "mage_char_essence": "Primordial",
+      "mage_char_player": "Sample",
+      "mage_char_demeanor": "Pedagogue",
+      "mage_char_affiliation": "Order of Hermes",
+      "mage_char_chronicle": "Ascension Now",
+      "mage_char_concept": "Hermetic Elementalist",
+      "mage_char_sect": "House Flambeau",
+      "mage_adv_1_0_name": "Avatar",
+      "mage_adv_1_1_name": "Library",
+      "mage_adv_1_2_name": "Node",
+      "mage_adv_1_3_name": "Wonder (Ash Wand)",
+      "mage_exp_val": "10",
+      "mage_p2_custom": "Paradigm: Sacred Geometry & High Ritual Magic.\nPractice: High Ritual Magick.\nInstruments: Ash Wood Wand, Enochian Chanting, Engraved Circles.",
+      "mage_combat_0_0": "Silver Athame",
+      "mage_combat_0_1": "6",
+      "mage_combat_0_2": "Str+1L",
+      "mage_combat_0_3": "Melee",
+      "mage_combat_0_4": "—",
+      "mage_combat_0_5": "—",
+      "mage_combat_0_6": "Pocket",
+      "mage_combat_1_0": "Bolt of Ignis (Forces 3/Prime 2)",
+      "mage_combat_1_1": "6",
+      "mage_combat_1_2": "6 Agg/L",
+      "mage_combat_1_3": "40 yds",
+      "mage_combat_1_4": "1",
+      "mage_combat_1_5": "Arete",
+      "mage_combat_1_6": "None",
+      "mage_armor_class": "Forces Kinetic Ward",
+      "mage_armor_rating": "3",
+      "mage_armor_penalty": "0",
+      "mage_exp_bgs": "Library: Covenant Archive containing centuries of Hermetic treatises.",
+      "mage_gear": "Carved ash wand, silver signet ring, ritual athame, chalk.",
+      "mage_locations": "Townhouse chantry shared with two fellow Hermetic cabal mates.",
+      "mage_history": "Awakened during an archival fire in Oxford when he instinctively channeled heat away from priceless manuscripts.",
+      "mage_desc": "Age: 36 | Hair: Dark brown | Eyes: Amber-brown | Height: 6'1\"",
+      "mage_merit_0_name": "Eidetic Memory",
+      "mage_merit_0_type": "Mental",
+      "mage_merit_0_cost": "2 pt.",
+      "mage_flaw_0_name": "Arrogant",
+      "mage_flaw_0_type": "Mental",
+      "mage_flaw_0_cost": "1 pt.",
+      "mage_armor_description": "Deflective energy barrier (Forces 3)",
+      "mage_attr_int_spec": "Sacred Geometry",
+      "mage_abi_0_awareness_spec": "Resonance",
+      "mage_abi_1_meditation_spec": "Quiet Focus",
+      "mage_abi_1_research_spec": "Grimoires",
+      "mage_abi_2_academics_spec": "Classical Latin",
+      "mage_abi_2_esoterica_spec": "Enochian Sigils",
+      "mage_abi_2_occult_spec": "Hermetic Lore"
+    },
+    "dots": {
+      "mage_attr_str": 2,
+      "mage_attr_dex": 3,
+      "mage_attr_sta": 3,
+      "mage_attr_cha": 3,
+      "mage_attr_man": 3,
+      "mage_attr_app": 2,
+      "mage_attr_per": 3,
+      "mage_attr_int": 5,
+      "mage_attr_wit": 3,
+      "mage_abi_0_alertness": 2,
+      "mage_abi_0_art": 1,
+      "mage_abi_0_athletics": 2,
+      "mage_abi_0_awareness": 4,
+      "mage_abi_0_brawl": 1,
+      "mage_abi_0_empathy": 1,
+      "mage_abi_0_expression": 3,
+      "mage_abi_0_intimidation": 3,
+      "mage_abi_0_leadership": 2,
+      "mage_abi_0_streetwise": 0,
+      "mage_abi_0_subterfuge": 2,
+      "mage_abi_1_crafts": 1,
+      "mage_abi_1_drive": 1,
+      "mage_abi_1_etiquette": 3,
+      "mage_abi_1_firearms": 1,
+      "mage_abi_1_martial_arts": 2,
+      "mage_abi_1_meditation": 4,
+      "mage_abi_1_melee": 2,
+      "mage_abi_1_research": 4,
+      "mage_abi_1_stealth": 1,
+      "mage_abi_1_survival": 1,
+      "mage_abi_1_technology": 2,
+      "mage_abi_2_academics": 4,
+      "mage_abi_2_computer": 1,
+      "mage_abi_2_cosmology": 3,
+      "mage_abi_2_enigmas": 3,
+      "mage_abi_2_esoterica": 4,
+      "mage_abi_2_investigation": 3,
+      "mage_abi_2_law": 2,
+      "mage_abi_2_medicine": 1,
+      "mage_abi_2_occult": 5,
+      "mage_abi_2_politics": 2,
+      "mage_abi_2_science": 3,
+      "mage_adv_0_correspondence": 1,
+      "mage_adv_0_forces": 3,
+      "mage_adv_0_prime": 2,
+      "mage_adv_1_0_dots": 3,
+      "mage_adv_1_1_dots": 3,
+      "mage_adv_1_2_dots": 2,
+      "mage_adv_1_3_dots": 2,
+      "mage_arete_dots": 3,
+      "mage_wp_dots": 7,
+      "mage_wp_sq": 7,
+      "mage_quint_sq1": 10,
+      "mage_para_sq1": 1
+    },
+    "health": {}
+  },
+  "mage_verbena": {
+    "splat": "mage",
+    "isTenDotMode": false,
+    "inputs": {
+      "mage_char_name": "Bridget MacAlister",
+      "mage_char_nature": "Caregiver",
+      "mage_char_essence": "Dynamic",
+      "mage_char_player": "Sample",
+      "mage_char_demeanor": "Traditionalist",
+      "mage_char_affiliation": "Verbena",
+      "mage_char_chronicle": "Roots of Blood",
+      "mage_char_concept": "Herbalist & Healer",
+      "mage_char_sect": "Circle of the Crescent Oak",
+      "mage_adv_1_0_name": "Allies",
+      "mage_adv_1_1_name": "Avatar",
+      "mage_adv_1_2_name": "Familiar (Barn Owl)",
+      "mage_adv_1_3_name": "Node",
+      "mage_exp_val": "9",
+      "mage_p2_custom": "Paradigm: The Old Ways of Blood, Sacrifice, and Earth.\nPractice: Witchcraft & Herbalism.\nInstruments: Medicinal herbs, bone athame, copper cauldron.",
+      "mage_combat_0_0": "Obsidian Athame",
+      "mage_combat_0_1": "6",
+      "mage_combat_0_2": "Str+1L",
+      "mage_combat_0_3": "Melee",
+      "mage_combat_0_4": "—",
+      "mage_combat_0_5": "—",
+      "mage_combat_0_6": "Belt",
+      "mage_armor_class": "None",
+      "mage_armor_rating": "0",
+      "mage_armor_penalty": "0",
+      "mage_exp_bgs": "Node: Sacred Oak Grove tucked inside a protected woodland.",
+      "mage_gear": "Bone-handled athame, pouch of dried yarrow and rowan berries, mortar & pestle.",
+      "mage_locations": "Stone cottage near a protected woodland.",
+      "mage_history": "Trained in traditional herbalism by her grandmother on the Scottish moors before her Awakening during a winter storm.",
+      "mage_desc": "Age: 29 | Hair: Wild auburn curls | Eyes: Moss green | Height: 5'7\"",
+      "mage_merit_0_name": "Green Thumb",
+      "mage_merit_0_type": "Supernatural",
+      "mage_merit_0_cost": "1 pt.",
+      "mage_flaw_0_name": "Bound to the Land",
+      "mage_flaw_0_type": "Supernatural",
+      "mage_flaw_0_cost": "2 pt.",
+      "mage_armor_description": "Heavy woolen shawl",
+      "mage_attr_sta_spec": "Earth-Bound",
+      "mage_attr_cha_spec": "Wild Magnetism",
+      "mage_abi_0_awareness_spec": "Life Currents",
+      "mage_abi_0_empathy_spec": "Emotional Wounds",
+      "mage_abi_1_survival_spec": "Foraging Herbs",
+      "mage_abi_2_esoterica_spec": "Blood Rituals",
+      "mage_abi_2_medicine_spec": "Herbal Remedies",
+      "mage_abi_2_occult_spec": "Old Ways Lore"
+    },
+    "dots": {
+      "mage_attr_str": 2,
+      "mage_attr_dex": 3,
+      "mage_attr_sta": 4,
+      "mage_attr_cha": 4,
+      "mage_attr_man": 2,
+      "mage_attr_app": 3,
+      "mage_attr_per": 3,
+      "mage_attr_int": 3,
+      "mage_attr_wit": 3,
+      "mage_abi_0_alertness": 2,
+      "mage_abi_0_art": 2,
+      "mage_abi_0_athletics": 2,
+      "mage_abi_0_awareness": 4,
+      "mage_abi_0_brawl": 1,
+      "mage_abi_0_empathy": 4,
+      "mage_abi_0_expression": 2,
+      "mage_abi_0_intimidation": 2,
+      "mage_abi_0_leadership": 2,
+      "mage_abi_0_streetwise": 1,
+      "mage_abi_0_subterfuge": 1,
+      "mage_abi_1_crafts": 3,
+      "mage_abi_1_drive": 1,
+      "mage_abi_1_etiquette": 2,
+      "mage_abi_1_firearms": 0,
+      "mage_abi_1_martial_arts": 1,
+      "mage_abi_1_meditation": 3,
+      "mage_abi_1_melee": 2,
+      "mage_abi_1_research": 2,
+      "mage_abi_1_stealth": 2,
+      "mage_abi_1_survival": 4,
+      "mage_abi_1_technology": 1,
+      "mage_abi_2_academics": 2,
+      "mage_abi_2_computer": 1,
+      "mage_abi_2_cosmology": 3,
+      "mage_abi_2_enigmas": 3,
+      "mage_abi_2_esoterica": 4,
+      "mage_abi_2_investigation": 2,
+      "mage_abi_2_law": 1,
+      "mage_abi_2_medicine": 4,
+      "mage_abi_2_occult": 4,
+      "mage_abi_2_politics": 1,
+      "mage_abi_2_science": 2,
+      "mage_adv_0_life": 3,
+      "mage_adv_0_matter": 2,
+      "mage_adv_0_prime": 1,
+      "mage_adv_1_0_dots": 2,
+      "mage_adv_1_1_dots": 3,
+      "mage_adv_1_2_dots": 2,
+      "mage_adv_1_3_dots": 3,
+      "mage_arete_dots": 3,
+      "mage_wp_dots": 6,
+      "mage_wp_sq": 6,
+      "mage_quint_sq1": 10
+    },
+    "health": {}
+  },
+  "mage_archmage": {
+    "splat": "mage",
+    "isTenDotMode": true,
+    "inputs": {
+      "mage_char_name": "Prospero of Milan",
+      "mage_char_nature": "Architect",
+      "mage_char_essence": "Pattern",
+      "mage_char_player": "Sample",
+      "mage_char_demeanor": "Autocrat",
+      "mage_char_affiliation": "Order of Hermes",
+      "mage_char_chronicle": "Horizon Realms",
+      "mage_char_concept": "Hermetic Archmage & Master of Tempests [Archmage]",
+      "mage_char_sect": "House Bonisagus",
+      "mage_adv_1_0_name": "Avatar",
+      "mage_adv_1_1_name": "Sanctum (Island Horizon Realm)",
+      "mage_adv_1_2_name": "Library (Alexandrian Folios)",
+      "mage_adv_1_3_name": "Node (Storm Wellspring)",
+      "mage_adv_1_4_name": "Familiar (Ariel, Air Spirit)",
+      "mage_adv_1_5_name": "Wonder (Staff of Abjuration)",
+      "mage_adv_2_0_name": "Lore: Umbral Courts",
+      "mage_adv_2_1_name": "Lore: High Enochian",
+      "mage_exp_val": "Master of the Art",
+      "mage_p2_custom": "Paradigm: Creation is a Symphony of True Names & Celestial Correspondences.\nPractice: High Ritual Magick & Dominion of Spirits.\nInstruments: Books of lore, staff of cedar, celestial astrolabe, spoken command.",
+      "mage_combat_0_0": "Staff of Abjuration",
+      "mage_combat_0_1": "6",
+      "mage_combat_0_2": "Str+2B",
+      "mage_combat_0_3": "Melee",
+      "mage_combat_0_4": "—",
+      "mage_combat_0_5": "—",
+      "mage_combat_0_6": "None",
+      "mage_combat_1_0": "Tempest Command (Forces 6/Spirit 6)",
+      "mage_combat_1_1": "6",
+      "mage_combat_1_2": "12+ Agg/L",
+      "mage_combat_1_3": "Horizon",
+      "mage_combat_1_4": "1",
+      "mage_combat_1_5": "Arete",
+      "mage_combat_1_6": "None",
+      "mage_armor_class": "Aegis of the Spheres",
+      "mage_armor_rating": "5",
+      "mage_armor_penalty": "0",
+      "mage_exp_bgs": "Sanctum 6: Secluded island Horizon Realm sheltered from Paradox.\nFamiliar 5: Ariel, an ancient sylph bound by mutual oath.",
+      "mage_gear": "Cedar staff, velvet scholar's robe, brass astrolabe, bound grimoires.",
+      "mage_locations": "Cell and observatory within his island Horizon Chantry.",
+      "mage_history": "Former Duke of Milan who abandoned temporal rule for the Hermetic Arts, mastering elemental tempests and spirit pacts.",
+      "mage_desc": "Age: Ageless (Appears 62) | Hair: Flowing silver beard | Eyes: Storm-grey | Height: 6'1\"",
+      "mage_merit_0_name": "Iron Will",
+      "mage_merit_0_type": "Mental",
+      "mage_merit_0_cost": "3 pt.",
+      "mage_merit_1_name": "Avatar Companion",
+      "mage_merit_1_type": "Supernatural",
+      "mage_merit_1_cost": "3 pt.",
+      "mage_flaw_0_name": "Obsession (Perfecting the Great Work)",
+      "mage_flaw_0_type": "Mental",
+      "mage_flaw_0_cost": "2 pt.",
+      "mage_armor_description": "Permanent Forces/Prime ward",
+      "mage_attr_dex_spec": "Staff Precision",
+      "mage_attr_sta_spec": "Unwearying",
+      "mage_attr_cha_spec": "Sovereign Aura",
+      "mage_attr_man_spec": "Commanding Rhetoric",
+      "mage_attr_app_spec": "Patrician Grace",
+      "mage_attr_per_spec": "Astral Sight",
+      "mage_attr_int_spec": "True Names",
+      "mage_attr_wit_spec": "Instant Calculation",
+      "mage_abi_0_alertness_spec": "Ambush Sense",
+      "mage_abi_0_art_spec": "Masque Staging",
+      "mage_abi_0_awareness_spec": "Quintessence Flow",
+      "mage_abi_0_empathy_spec": "Soul Reading",
+      "mage_abi_0_expression_spec": "Incantations",
+      "mage_abi_0_intimidation_spec": "Wrath of Tempests",
+      "mage_abi_0_leadership_spec": "Chantry Command",
+      "mage_abi_0_subterfuge_spec": "Illusory Guise",
+      "mage_abi_1_crafts_spec": "Talisman Forging",
+      "mage_abi_1_etiquette_spec": "Horizon Courts",
+      "mage_abi_1_meditation_spec": "Deep Trance",
+      "mage_abi_1_research_spec": "Forbidden Tomes",
+      "mage_abi_1_survival_spec": "Wilderness Exile",
+      "mage_abi_2_academics_spec": "Renaissance Lore",
+      "mage_abi_2_cosmology_spec": "Horizon Realms",
+      "mage_abi_2_enigmas_spec": "Paradox Riddles",
+      "mage_abi_2_esoterica_spec": "High Rituals",
+      "mage_abi_2_investigation_spec": "Arcane Traces",
+      "mage_abi_2_law_spec": "Hermetic Code",
+      "mage_abi_2_occult_spec": "Spirit Pacts",
+      "mage_abi_2_politics_spec": "Tradition Councils",
+      "mage_abi_2_science_spec": "Celestial Mechanics"
+    },
+    "dots": {
+      "mage_attr_str": 3,
+      "mage_attr_dex": 4,
+      "mage_attr_sta": 4,
+      "mage_attr_cha": 6,
+      "mage_attr_man": 6,
+      "mage_attr_app": 4,
+      "mage_attr_per": 6,
+      "mage_attr_int": 7,
+      "mage_attr_wit": 6,
+      "mage_abi_0_alertness": 4,
+      "mage_abi_0_art": 5,
+      "mage_abi_0_athletics": 2,
+      "mage_abi_0_awareness": 7,
+      "mage_abi_0_brawl": 1,
+      "mage_abi_0_empathy": 4,
+      "mage_abi_0_expression": 6,
+      "mage_abi_0_intimidation": 6,
+      "mage_abi_0_leadership": 6,
+      "mage_abi_0_streetwise": 1,
+      "mage_abi_0_subterfuge": 5,
+      "mage_abi_1_crafts": 4,
+      "mage_abi_1_drive": 1,
+      "mage_abi_1_etiquette": 6,
+      "mage_abi_1_firearms": 1,
+      "mage_abi_1_martial_arts": 2,
+      "mage_abi_1_meditation": 6,
+      "mage_abi_1_melee": 3,
+      "mage_abi_1_research": 7,
+      "mage_abi_1_stealth": 3,
+      "mage_abi_1_survival": 4,
+      "mage_abi_1_technology": 2,
+      "mage_abi_2_academics": 7,
+      "mage_abi_2_computer": 1,
+      "mage_abi_2_cosmology": 7,
+      "mage_abi_2_enigmas": 6,
+      "mage_abi_2_esoterica": 7,
+      "mage_abi_2_investigation": 5,
+      "mage_abi_2_law": 5,
+      "mage_abi_2_medicine": 3,
+      "mage_abi_2_occult": 7,
+      "mage_abi_2_politics": 5,
+      "mage_abi_2_science": 5,
+      "mage_adv_0_correspondence": 5,
+      "mage_adv_0_entropy": 4,
+      "mage_adv_0_forces": 6,
+      "mage_adv_0_life": 3,
+      "mage_adv_0_matter": 4,
+      "mage_adv_0_mind": 5,
+      "mage_adv_0_prime": 5,
+      "mage_adv_0_spirit": 6,
+      "mage_adv_0_time": 5,
+      "mage_adv_1_0_dots": 5,
+      "mage_adv_1_1_dots": 6,
+      "mage_adv_1_2_dots": 6,
+      "mage_adv_1_3_dots": 5,
+      "mage_adv_1_4_dots": 5,
+      "mage_adv_1_5_dots": 5,
+      "mage_adv_2_0_dots": 5,
+      "mage_adv_2_1_dots": 5,
+      "mage_arete_dots": 7,
+      "mage_wp_dots": 10,
+      "mage_wp_sq": 10,
+      "mage_quint_sq1": 10,
+      "mage_quint_sq2": 8,
+      "mage_para_sq1": 3
+    },
+    "health": {}
+  },
+  "changeling_sluagh": {
+    "splat": "changeling",
+    "isTenDotMode": false,
+    "inputs": {
+      "changeling_char_name": "Uncle Whisper",
+      "changeling_char_court": "Unseelie",
+      "changeling_char_seeming": "Grump",
+      "changeling_char_player": "Sample",
+      "changeling_char_legacies": "Curmudgeon / Crafter",
+      "changeling_char_kith": "Sluagh",
+      "changeling_char_chronicle": "Shadows in the Closet",
+      "changeling_char_house": "Shadow Court",
+      "changeling_char_motley": "Independent Broker",
+      "changeling_adv_0_0_name": "Chimera",
+      "changeling_adv_0_1_name": "Contacts",
+      "changeling_adv_0_2_name": "Dreamers",
+      "changeling_adv_0_3_name": "Treasures",
+      "changeling_adv_1_0_name": "Chicanery",
+      "changeling_adv_1_1_name": "Legerdemain",
+      "changeling_adv_1_2_name": "Soothsay",
+      "changeling_birthright_box": "Birthright: Squirm & Sharpened Senses. Frailty: Curse of Silence (cannot speak above a whisper).",
+      "changeling_antithesis": "Bright Spotlights & Mundane Bureaucracy",
+      "changeling_thresholds": "Musing: 3 | Ravaging: 4",
+      "changeling_exp_val": "11",
+      "changeling_p2_custom": "",
+      "changeling_combat_0_0": "Silver Letter Opener",
+      "changeling_combat_0_1": "6",
+      "changeling_combat_0_2": "Str+1L",
+      "changeling_combat_0_3": "Melee",
+      "changeling_combat_0_4": "—",
+      "changeling_combat_0_5": "—",
+      "changeling_combat_0_6": "Sleeve",
+      "changeling_armor_class": "None",
+      "changeling_armor_rating": "0",
+      "changeling_armor_penalty": "0",
+      "changeling_exp_bgs": "Treasures: Obsidian Looking-Glass reflecting past events in a room.",
+      "changeling_gear": "Brass magnifying loupe, skeleton keys, velvet earplugs, antique ledger.",
+      "changeling_locations": "Hidden cellar beneath an antique restoration shop.",
+      "changeling_history": "Trades forgotten secrets and chimerical curiosities to Seelie and Unseelie alike without taking sides.",
+      "changeling_desc": "Age: 60 | Hair: Sparse grey wisps | Eyes: Glossy black | Height: 5'4\" | Weight: 115 lbs",
+      "changeling_merit_0_name": "Double-Jointed",
+      "changeling_merit_0_type": "Physical",
+      "changeling_merit_0_cost": "1 pt.",
+      "changeling_flaw_0_name": "Phobia (Loud Noises)",
+      "changeling_flaw_0_type": "Mental",
+      "changeling_flaw_0_cost": "1 pt.",
+      "changeling_armor_description": "Velvet-lined frock coat",
+      "changeling_attr_dex_spec": "Contortionism",
+      "changeling_attr_man_spec": "Whispered Bargains",
+      "changeling_attr_per_spec": "Darkvision",
+      "changeling_attr_int_spec": "Secret Appraisals",
+      "changeling_attr_wit_spec": "Street Cunning",
+      "changeling_abi_0_alertness_spec": "Eavesdropping",
+      "changeling_abi_0_kenning_spec": "Chimerical Aura",
+      "changeling_abi_0_subterfuge_spec": "Half-Truths",
+      "changeling_abi_1_larceny_spec": "Lockpicking",
+      "changeling_abi_1_stealth_spec": "Shadows",
+      "changeling_abi_2_enigmas_spec": "Riddles",
+      "changeling_abi_2_gremayre_spec": "Shadow Court Lore",
+      "changeling_abi_2_investigation_spec": "Hidden Tracks"
+    },
+    "dots": {
+      "changeling_attr_str": 1,
+      "changeling_attr_dex": 4,
+      "changeling_attr_sta": 2,
+      "changeling_attr_cha": 1,
+      "changeling_attr_man": 4,
+      "changeling_attr_app": 1,
+      "changeling_attr_per": 5,
+      "changeling_attr_int": 4,
+      "changeling_attr_wit": 4,
+      "changeling_abi_0_alertness": 4,
+      "changeling_abi_0_athletics": 3,
+      "changeling_abi_0_brawl": 0,
+      "changeling_abi_0_empathy": 3,
+      "changeling_abi_0_expression": 1,
+      "changeling_abi_0_intimidation": 2,
+      "changeling_abi_0_kenning": 4,
+      "changeling_abi_0_leadership": 0,
+      "changeling_abi_0_streetwise": 3,
+      "changeling_abi_0_subterfuge": 4,
+      "changeling_abi_1_animal_ken": 2,
+      "changeling_abi_1_crafts": 2,
+      "changeling_abi_1_drive": 1,
+      "changeling_abi_1_etiquette": 2,
+      "changeling_abi_1_firearms": 0,
+      "changeling_abi_1_larceny": 4,
+      "changeling_abi_1_melee": 1,
+      "changeling_abi_1_performance": 1,
+      "changeling_abi_1_stealth": 5,
+      "changeling_abi_1_survival": 1,
+      "changeling_abi_1_technology": 1,
+      "changeling_abi_2_academics": 3,
+      "changeling_abi_2_computer": 2,
+      "changeling_abi_2_enigmas": 4,
+      "changeling_abi_2_gremayre": 4,
+      "changeling_abi_2_investigation": 4,
+      "changeling_abi_2_law": 1,
+      "changeling_abi_2_medicine": 2,
+      "changeling_abi_2_politics": 3,
+      "changeling_abi_2_science": 1,
+      "changeling_adv_0_0_dots": 1,
+      "changeling_adv_0_1_dots": 3,
+      "changeling_adv_0_2_dots": 2,
+      "changeling_adv_0_3_dots": 3,
+      "changeling_adv_1_0_dots": 2,
+      "changeling_adv_1_1_dots": 2,
+      "changeling_adv_1_2_dots": 1,
+      "changeling_adv_2_actor": 1,
+      "changeling_adv_2_fae": 1,
+      "changeling_adv_2_nature": 0,
+      "changeling_adv_2_prop": 2,
+      "changeling_adv_2_scene": 2,
+      "changeling_adv_2_time": 1,
+      "changeling_glamour_dots": 5,
+      "changeling_glamour_sq": 5,
+      "changeling_wp_dots": 6,
+      "changeling_wp_sq": 6,
+      "changeling_banality_dots": 4,
+      "changeling_banality_sq": 4
+    },
+    "health": {}
+  },
+  "changeling_eshu": {
+    "splat": "changeling",
+    "isTenDotMode": false,
+    "inputs": {
+      "changeling_char_name": "Zara Al-Mansoor",
+      "changeling_char_court": "Seelie",
+      "changeling_char_seeming": "Wilder",
+      "changeling_char_player": "Sample",
+      "changeling_char_legacies": "Paladin / Wayfarer",
+      "changeling_char_kith": "Eshu",
+      "changeling_char_chronicle": "Silver Trods",
+      "changeling_char_house": "House Liam",
+      "changeling_char_motley": "The Lantern Bearers",
+      "changeling_adv_0_0_name": "Contacts (Travelers)",
+      "changeling_adv_0_1_name": "Dreamers (Street Audiences)",
+      "changeling_adv_0_2_name": "Holdings (Wayside Inn)",
+      "changeling_adv_0_3_name": "Treasures (Compass of Trods)",
+      "changeling_adv_1_0_name": "Wayfare",
+      "changeling_adv_1_1_name": "Soothsay",
+      "changeling_adv_1_2_name": "Sovereign",
+      "changeling_birthright_box": "Birthright: Spirit Pathways & Talecraft. Frailty: Recklessness (cannot refuse a compelling dare or mystery).",
+      "changeling_antithesis": "Locked Cages & Stagnant Routine",
+      "changeling_thresholds": "Musing: 4 | Ravaging: 2",
+      "changeling_exp_val": "10",
+      "changeling_p2_custom": "",
+      "changeling_combat_0_0": "Chimerical Scimitar",
+      "changeling_combat_0_1": "6",
+      "changeling_combat_0_2": "Str+3L",
+      "changeling_combat_0_3": "Melee",
+      "changeling_combat_0_4": "—",
+      "changeling_combat_0_5": "—",
+      "changeling_combat_0_6": "Scabbard",
+      "changeling_armor_class": "Woven Silk Coat",
+      "changeling_armor_rating": "1",
+      "changeling_armor_penalty": "0",
+      "changeling_exp_bgs": "Treasures: Brass astrolabe-compass that points toward nearby Trods.",
+      "changeling_gear": "Brass compass, travel journal, chimerical scimitar, silver flute.",
+      "changeling_locations": "A crossroads cafe harboring a hidden Silver Path.",
+      "changeling_history": "Went through her Chrysalis while backpacking across mountain passes, discovering she could walk the hidden Trods between freeholds.",
+      "changeling_desc": "Age: 26 | Hair: Dark braids | Eyes: Warm amber | Height: 5'8\"",
+      "changeling_merit_0_name": "Direction Sense",
+      "changeling_merit_0_type": "Mental",
+      "changeling_merit_0_cost": "1 pt.",
+      "changeling_merit_1_name": "Natural Linguist",
+      "changeling_merit_1_type": "Mental",
+      "changeling_merit_1_cost": "2 pt.",
+      "changeling_flaw_0_name": "Curiosity",
+      "changeling_flaw_0_type": "Mental",
+      "changeling_flaw_0_cost": "2 pt.",
+      "changeling_armor_description": "Chimerical traveler's coat",
+      "changeling_attr_dex_spec": "Graceful",
+      "changeling_attr_cha_spec": "Captivating",
+      "changeling_attr_wit_spec": "Quick-Witted",
+      "changeling_abi_0_expression_spec": "Epic Storytelling",
+      "changeling_abi_1_performance_spec": "Wanderer's Tales"
+    },
+    "dots": {
+      "changeling_attr_str": 2,
+      "changeling_attr_dex": 4,
+      "changeling_attr_sta": 3,
+      "changeling_attr_cha": 4,
+      "changeling_attr_man": 3,
+      "changeling_attr_app": 3,
+      "changeling_attr_per": 3,
+      "changeling_attr_int": 3,
+      "changeling_attr_wit": 4,
+      "changeling_abi_0_alertness": 3,
+      "changeling_abi_0_athletics": 3,
+      "changeling_abi_0_brawl": 1,
+      "changeling_abi_0_empathy": 3,
+      "changeling_abi_0_expression": 4,
+      "changeling_abi_0_intimidation": 1,
+      "changeling_abi_0_kenning": 3,
+      "changeling_abi_0_leadership": 2,
+      "changeling_abi_0_streetwise": 3,
+      "changeling_abi_0_subterfuge": 2,
+      "changeling_abi_1_animal_ken": 2,
+      "changeling_abi_1_crafts": 1,
+      "changeling_abi_1_drive": 2,
+      "changeling_abi_1_etiquette": 2,
+      "changeling_abi_1_firearms": 0,
+      "changeling_abi_1_larceny": 2,
+      "changeling_abi_1_melee": 3,
+      "changeling_abi_1_performance": 4,
+      "changeling_abi_1_stealth": 3,
+      "changeling_abi_1_survival": 3,
+      "changeling_abi_1_technology": 1,
+      "changeling_abi_2_academics": 2,
+      "changeling_abi_2_computer": 1,
+      "changeling_abi_2_enigmas": 3,
+      "changeling_abi_2_gremayre": 3,
+      "changeling_abi_2_investigation": 2,
+      "changeling_abi_2_law": 1,
+      "changeling_abi_2_medicine": 1,
+      "changeling_abi_2_politics": 1,
+      "changeling_abi_2_science": 1,
+      "changeling_adv_0_0_dots": 2,
+      "changeling_adv_0_1_dots": 2,
+      "changeling_adv_0_2_dots": 2,
+      "changeling_adv_0_3_dots": 2,
+      "changeling_adv_1_0_dots": 3,
+      "changeling_adv_1_1_dots": 2,
+      "changeling_adv_1_2_dots": 1,
+      "changeling_adv_2_actor": 2,
+      "changeling_adv_2_fae": 2,
+      "changeling_adv_2_nature": 2,
+      "changeling_adv_2_prop": 1,
+      "changeling_adv_2_scene": 3,
+      "changeling_adv_2_time": 0,
+      "changeling_glamour_dots": 6,
+      "changeling_glamour_sq": 6,
+      "changeling_wp_dots": 6,
+      "changeling_wp_sq": 6,
+      "changeling_banality_dots": 3,
+      "changeling_banality_sq": 3
+    },
+    "health": {}
+  },
+  "changeling_oberon": {
+    "splat": "changeling",
+    "isTenDotMode": true,
+    "inputs": {
+      "changeling_char_name": "King Oberon",
+      "changeling_char_court": "Seelie",
+      "changeling_char_seeming": "Grump",
+      "changeling_char_player": "Sample",
+      "changeling_char_legacies": "Sovereign / Regent",
+      "changeling_char_kith": "Sidhe",
+      "changeling_char_chronicle": "A Midsummer Night's Dream",
+      "changeling_char_house": "House Gwydion",
+      "changeling_char_motley": "The Seelie Court of the Forest",
+      "changeling_adv_0_0_name": "Title (King of the Fairies)",
+      "changeling_adv_0_1_name": "Holdings (Enchanted Forest)",
+      "changeling_adv_0_2_name": "Retinue (Fairy Court)",
+      "changeling_adv_0_3_name": "Treasures (Love-in-Idleness)",
+      "changeling_adv_1_0_name": "Sovereign",
+      "changeling_adv_1_1_name": "Primal",
+      "changeling_adv_1_2_name": "Chicanery",
+      "changeling_adv_1_3_name": "Wayfare",
+      "changeling_birthright_box": "Birthright: Unearthly Majesty & Awe. Frailty: Curse of Truth (cannot speak an outright lie).",
+      "changeling_antithesis": "Cold Iron & Mortal Cynicism",
+      "changeling_thresholds": "Musing: 5 | Ravaging: 2",
+      "changeling_exp_val": "Monarch of Shadows",
+      "changeling_p2_custom": "Treasures: Love-in-Idleness Flower (induces potent chimerical infatuation).",
+      "changeling_combat_0_0": "Chimerical Star-Iron Blade",
+      "changeling_combat_0_1": "6",
+      "changeling_combat_0_2": "Str+3L",
+      "changeling_combat_0_3": "Melee",
+      "changeling_combat_0_4": "—",
+      "changeling_combat_0_5": "—",
+      "changeling_combat_0_6": "Scabbard",
+      "changeling_armor_class": "Sylvan Royal Regalia",
+      "changeling_armor_rating": "3",
+      "changeling_armor_penalty": "0",
+      "changeling_exp_bgs": "Title 6: King of the Fairies.\nHoldings 6: The Enchanted Woods outside Athens.",
+      "changeling_gear": "Antler crown, Love-in-Idleness flower, royal scepter.",
+      "changeling_locations": "The Enchanted Woods outside Athens; Near-Dreaming Freehold.",
+      "changeling_history": "Ancient Sidhe monarch of the Seelie Court who rules the midnight woods alongside Queen Titania.",
+      "changeling_desc": "True Name: Oberon | Age: Immortal | Apparent Age: Ageless Sovereign | Hair: Flowing silver-gold | Height: 6'5\"",
+      "changeling_merit_0_name": "Unearthly Beauty",
+      "changeling_merit_0_type": "Physical",
+      "changeling_merit_0_cost": "2 pt.",
+      "changeling_flaw_0_name": "Geas (Uphold Seelie Law)",
+      "changeling_flaw_0_type": "Supernatural",
+      "changeling_flaw_0_cost": "3 pt.",
+      "changeling_armor_description": "Woven moonbeams & starlight",
+      "changeling_attr_str_spec": "Fae Might",
+      "changeling_attr_dex_spec": "Quicksilver",
+      "changeling_attr_sta_spec": "Ageless",
+      "changeling_attr_cha_spec": "Unearthly Majesty",
+      "changeling_attr_man_spec": "Beguiling",
+      "changeling_attr_app_spec": "Sidhe Splendor",
+      "changeling_attr_per_spec": "Dream-Sight",
+      "changeling_attr_int_spec": "Ancient Lore",
+      "changeling_attr_wit_spec": "Sharp Repartee",
+      "changeling_abi_0_alertness_spec": "Forest Watch",
+      "changeling_abi_0_athletics_spec": "Sylvan Leaping",
+      "changeling_abi_0_empathy_spec": "Mortal Desires",
+      "changeling_abi_0_expression_spec": "Royal Decrees",
+      "changeling_abi_0_intimidation_spec": "Seelie Wrath",
+      "changeling_abi_0_kenning_spec": "Glamour Sense",
+      "changeling_abi_0_leadership_spec": "Courtly Rule",
+      "changeling_abi_0_subterfuge_spec": "Oath-Craft",
+      "changeling_abi_1_animal_ken_spec": "Woodland Beasts",
+      "changeling_abi_1_etiquette_spec": "High Court",
+      "changeling_abi_1_melee_spec": "Fae Blades",
+      "changeling_abi_1_performance_spec": "Court Masques",
+      "changeling_abi_1_stealth_spec": "Midsummer Mist",
+      "changeling_abi_1_survival_spec": "Deep Dreaming",
+      "changeling_abi_2_academics_spec": "Mythic History",
+      "changeling_abi_2_enigmas_spec": "Fae Prophecies",
+      "changeling_abi_2_gremayre_spec": "Arcadian Rites",
+      "changeling_abi_2_law_spec": "Oaths & Boons",
+      "changeling_abi_2_politics_spec": "Seelie Dynasties"
+    },
+    "dots": {
+      "changeling_attr_str": 4,
+      "changeling_attr_dex": 5,
+      "changeling_attr_sta": 4,
+      "changeling_attr_cha": 7,
+      "changeling_attr_man": 6,
+      "changeling_attr_app": 7,
+      "changeling_attr_per": 5,
+      "changeling_attr_int": 5,
+      "changeling_attr_wit": 5,
+      "changeling_abi_0_alertness": 4,
+      "changeling_abi_0_athletics": 4,
+      "changeling_abi_0_brawl": 2,
+      "changeling_abi_0_empathy": 4,
+      "changeling_abi_0_expression": 6,
+      "changeling_abi_0_intimidation": 6,
+      "changeling_abi_0_kenning": 6,
+      "changeling_abi_0_leadership": 7,
+      "changeling_abi_0_streetwise": 1,
+      "changeling_abi_0_subterfuge": 5,
+      "changeling_abi_1_animal_ken": 5,
+      "changeling_abi_1_crafts": 2,
+      "changeling_abi_1_drive": 0,
+      "changeling_abi_1_etiquette": 6,
+      "changeling_abi_1_firearms": 0,
+      "changeling_abi_1_larceny": 1,
+      "changeling_abi_1_melee": 5,
+      "changeling_abi_1_performance": 5,
+      "changeling_abi_1_stealth": 5,
+      "changeling_abi_1_survival": 5,
+      "changeling_abi_1_technology": 0,
+      "changeling_abi_2_academics": 4,
+      "changeling_abi_2_computer": 0,
+      "changeling_abi_2_enigmas": 6,
+      "changeling_abi_2_gremayre": 6,
+      "changeling_abi_2_investigation": 3,
+      "changeling_abi_2_law": 5,
+      "changeling_abi_2_medicine": 1,
+      "changeling_abi_2_politics": 6,
+      "changeling_abi_2_science": 0,
+      "changeling_adv_0_0_dots": 6,
+      "changeling_adv_0_1_dots": 6,
+      "changeling_adv_0_2_dots": 5,
+      "changeling_adv_0_3_dots": 4,
+      "changeling_adv_1_0_dots": 6,
+      "changeling_adv_1_1_dots": 5,
+      "changeling_adv_1_2_dots": 5,
+      "changeling_adv_1_3_dots": 5,
+      "changeling_adv_2_actor": 5,
+      "changeling_adv_2_fae": 6,
+      "changeling_adv_2_nature": 6,
+      "changeling_adv_2_prop": 4,
+      "changeling_adv_2_scene": 6,
+      "changeling_adv_2_time": 4,
+      "changeling_glamour_dots": 9,
+      "changeling_glamour_sq": 9,
+      "changeling_wp_dots": 9,
+      "changeling_wp_sq": 9,
+      "changeling_banality_dots": 2,
+      "changeling_banality_sq": 2
+    },
+    "health": {}
+  },
+  "wraith_spook": {
+    "splat": "wraith",
+    "isTenDotMode": false,
+    "inputs": {
+      "wraith_char_name": "Thomas Vane",
+      "wraith_char_nature": "Avenger",
+      "wraith_char_life": "Mill Foreman (1912)",
+      "wraith_char_player": "Sample",
+      "wraith_char_demeanor": "Monster",
+      "wraith_char_death": "Boiler Explosion",
+      "wraith_char_chronicle": "Cold Iron Bells",
+      "wraith_char_shadow": "The Destroyer",
+      "wraith_char_regret": "Abandoning the Strike",
+      "wraith_adv_0_0_name": "Haunt (The Old Mill)",
+      "wraith_adv_0_1_name": "Artifact (Soulsteel Chain)",
+      "wraith_adv_0_2_name": "Notoriety",
+      "wraith_adv_1_0_name": "Inhabit",
+      "wraith_adv_1_1_name": "Outrage",
+      "wraith_adv_2_0_name": "Passion: Protect the Workers' Kin",
+      "wraith_adv_2_1_name": "Passion: Punish Greed",
+      "wraith_adv_2_2_name": "Fetter: Brass Foreman's Whistle",
+      "wraith_adv_2_3_name": "Fetter: Boiler Room Iron Door",
+      "wraith_p2_custom": "Guild: Spooks.",
+      "wraith_combat_0_0": "Telekinetic Impact (Outrage 2)",
+      "wraith_combat_0_1": "6",
+      "wraith_combat_0_2": "6B",
+      "wraith_combat_0_3": "15 yds",
+      "wraith_combat_0_4": "1",
+      "wraith_combat_0_5": "Pathos",
+      "wraith_combat_0_6": "None",
+      "wraith_combat_0_7": "1",
+      "wraith_armor_class": "Spectral Overalls",
+      "wraith_armor_rating": "0",
+      "wraith_armor_penalty": "0",
+      "wraith_exp_bgs": "Haunt: The Derelict Textile Mill on the riverfront.",
+      "wraith_gear": "Ghostly chain forged from spectral residue, brass whistle.",
+      "wraith_locations": "The flooded boiler basement of the mill.",
+      "wraith_history": "Locked inside the boiler room during a violent labor strike in 1912. He clawed his way back from the Tempest to guard his fetters.",
+      "wraith_desc": "Age: 38 at death | Hair: Burned and ash-covered | Eyes: Hollow red coals | Height: 6'2\"",
+      "wraith_psyche": "Thomas Vane",
+      "wraith_archetype": "The Destroyer",
+      "wraith_shadowguide": "Storyteller",
+      "wraith_thorns": "Dark Allies, Taint",
+      "wraith_darkpassions": "Burn the Mill to Ash (3)",
+      "wraith_merit_0_name": "Deadly Chill",
+      "wraith_merit_0_type": "Supernatural",
+      "wraith_merit_0_cost": "2 pt.",
+      "wraith_flaw_0_name": "Grisly Demise",
+      "wraith_flaw_0_type": "Supernatural",
+      "wraith_flaw_0_cost": "2 pt.",
+      "wraith_armor_description": "Soot-stained work clothes",
+      "wraith_attr_str_spec": "Crushing Force",
+      "wraith_attr_sta_spec": "Relentless",
+      "wraith_attr_wit_spec": "Improvisation",
+      "wraith_abi_0_athletics_spec": "Poltergeist Leap",
+      "wraith_abi_0_brawl_spec": "Dirty Brawling",
+      "wraith_abi_0_intimidation_spec": "Haunting Dread",
+      "wraith_abi_1_stealth_spec": "Shadowed Corners"
+    },
+    "dots": {
+      "wraith_attr_str": 4,
+      "wraith_attr_dex": 3,
+      "wraith_attr_sta": 4,
+      "wraith_attr_cha": 1,
+      "wraith_attr_man": 2,
+      "wraith_attr_app": 1,
+      "wraith_attr_per": 3,
+      "wraith_attr_int": 2,
+      "wraith_attr_wit": 4,
+      "wraith_abi_0_alertness": 3,
+      "wraith_abi_0_athletics": 4,
+      "wraith_abi_0_awareness": 3,
+      "wraith_abi_0_brawl": 4,
+      "wraith_abi_0_empathy": 1,
+      "wraith_abi_0_expression": 0,
+      "wraith_abi_0_intimidation": 5,
+      "wraith_abi_0_persuasion": 1,
+      "wraith_abi_0_streetwise": 2,
+      "wraith_abi_0_subterfuge": 1,
+      "wraith_abi_1_crafts": 3,
+      "wraith_abi_1_drive": 0,
+      "wraith_abi_1_etiquette": 0,
+      "wraith_abi_1_firearms": 0,
+      "wraith_abi_1_larceny": 1,
+      "wraith_abi_1_leadership": 0,
+      "wraith_abi_1_meditation": 0,
+      "wraith_abi_1_melee": 3,
+      "wraith_abi_1_performance": 0,
+      "wraith_abi_1_stealth": 4,
+      "wraith_abi_2_academics": 1,
+      "wraith_abi_2_bureaucracy": 1,
+      "wraith_abi_2_computer": 0,
+      "wraith_abi_2_enigmas": 2,
+      "wraith_abi_2_investigation": 3,
+      "wraith_abi_2_medicine": 0,
+      "wraith_abi_2_occult": 3,
+      "wraith_abi_2_politics": 0,
+      "wraith_abi_2_science": 1,
+      "wraith_abi_2_technology": 0,
+      "wraith_adv_0_0_dots": 3,
+      "wraith_adv_0_1_dots": 2,
+      "wraith_adv_0_2_dots": 2,
+      "wraith_adv_1_0_dots": 3,
+      "wraith_adv_1_1_dots": 2,
+      "wraith_adv_2_0_dots": 3,
+      "wraith_adv_2_1_dots": 2,
+      "wraith_adv_2_2_dots": 3,
+      "wraith_adv_2_3_dots": 2,
+      "wraith_corpus_dots": 10,
+      "wraith_corpus_sq": 10,
+      "wraith_wp_dots": 6,
+      "wraith_wp_sq": 6,
+      "wraith_pathos_sq": 10,
+      "wraith_psyche_wp": 5,
+      "wraith_angst": 3,
+      "wraith_angst_sq": 3
+    },
+    "health": {}
+  },
+  "wraith_puppeteer": {
+    "splat": "wraith",
+    "isTenDotMode": false,
+    "inputs": {
+      "wraith_char_name": "Julian Cross",
+      "wraith_char_nature": "Director",
+      "wraith_char_life": "Corporate CEO (1988)",
+      "wraith_char_player": "Sample",
+      "wraith_char_demeanor": "Architect",
+      "wraith_char_death": "Cardiac Arrest",
+      "wraith_char_chronicle": "Ghost in the Machine",
+      "wraith_char_shadow": "The Sycophant",
+      "wraith_char_regret": "Unfinished Merger",
+      "wraith_adv_0_0_name": "Consort (Living Host)",
+      "wraith_adv_0_1_name": "Resources (Living Empire)",
+      "wraith_adv_0_2_name": "Allies",
+      "wraith_adv_0_3_name": "Status",
+      "wraith_adv_1_0_name": "Puppetry",
+      "wraith_adv_1_1_name": "Embody",
+      "wraith_adv_2_0_name": "Passion: Control Cross Financial",
+      "wraith_adv_2_1_name": "Passion: Outmaneuver Rivals",
+      "wraith_adv_2_2_name": "Fetter: Gold Pocket Watch",
+      "wraith_adv_2_3_name": "Fetter: Executive Boardroom Desk",
+      "wraith_p2_custom": "Guild: Puppeteers.",
+      "wraith_combat_0_0": "Puppetry: Master Mind",
+      "wraith_combat_0_1": "6",
+      "wraith_combat_0_2": "Full Body Control",
+      "wraith_combat_0_3": "Line of Sight",
+      "wraith_combat_0_4": "1/turn",
+      "wraith_combat_0_5": "Pathos",
+      "wraith_combat_0_6": "None",
+      "wraith_combat_0_7": "2",
+      "wraith_armor_class": "None",
+      "wraith_armor_rating": "0",
+      "wraith_armor_penalty": "0",
+      "wraith_exp_bgs": "Resources: Living Offshore Trust managed via possessed signatures.",
+      "wraith_gear": "Spectral business suit, gold pocket watch relic.",
+      "wraith_locations": "Haunts the top-floor corner executive suite of Cross Financial Tower.",
+      "wraith_history": "Died of a sudden cardiac arrest at his desk. Julian refused to leave his corporate empire in the hands of his board.",
+      "wraith_desc": "Age: 54 at death (1988) | Hair: Silver | Eyes: Steely grey | Height: 6'0\"",
+      "wraith_psyche": "Julian Cross",
+      "wraith_archetype": "The Director",
+      "wraith_shadowguide": "Storyteller",
+      "wraith_thorns": "Pact of Doom",
+      "wraith_darkpassions": "Ruin former partners (4)",
+      "wraith_merit_0_name": "Iron Will",
+      "wraith_merit_0_type": "Mental",
+      "wraith_merit_0_cost": "3 pt.",
+      "wraith_flaw_0_name": "Obsession (Living Empire)",
+      "wraith_flaw_0_type": "Mental",
+      "wraith_flaw_0_cost": "2 pt.",
+      "wraith_armor_description": "Spectral tailored suit",
+      "wraith_attr_cha_spec": "Executive Charm",
+      "wraith_attr_man_spec": "Coercion",
+      "wraith_attr_int_spec": "Strategic Mind",
+      "wraith_attr_wit_spec": "Cold Composure",
+      "wraith_abi_0_empathy_spec": "Reading Desires",
+      "wraith_abi_0_persuasion_spec": "Boardroom Deals",
+      "wraith_abi_0_subterfuge_spec": "Host Impersonation",
+      "wraith_abi_1_etiquette_spec": "High Society",
+      "wraith_abi_1_leadership_spec": "Corporate Command",
+      "wraith_abi_2_bureaucracy_spec": "Shell Companies"
+    },
+    "dots": {
+      "wraith_attr_str": 2,
+      "wraith_attr_dex": 3,
+      "wraith_attr_sta": 2,
+      "wraith_attr_cha": 4,
+      "wraith_attr_man": 5,
+      "wraith_attr_app": 3,
+      "wraith_attr_per": 3,
+      "wraith_attr_int": 4,
+      "wraith_attr_wit": 4,
+      "wraith_abi_0_alertness": 2,
+      "wraith_abi_0_athletics": 1,
+      "wraith_abi_0_awareness": 3,
+      "wraith_abi_0_brawl": 0,
+      "wraith_abi_0_empathy": 4,
+      "wraith_abi_0_expression": 3,
+      "wraith_abi_0_intimidation": 3,
+      "wraith_abi_0_persuasion": 5,
+      "wraith_abi_0_streetwise": 2,
+      "wraith_abi_0_subterfuge": 5,
+      "wraith_abi_1_crafts": 0,
+      "wraith_abi_1_drive": 2,
+      "wraith_abi_1_etiquette": 4,
+      "wraith_abi_1_firearms": 1,
+      "wraith_abi_1_larceny": 2,
+      "wraith_abi_1_leadership": 4,
+      "wraith_abi_1_meditation": 1,
+      "wraith_abi_1_melee": 1,
+      "wraith_abi_1_performance": 3,
+      "wraith_abi_1_stealth": 3,
+      "wraith_abi_2_academics": 2,
+      "wraith_abi_2_bureaucracy": 4,
+      "wraith_abi_2_computer": 2,
+      "wraith_abi_2_enigmas": 2,
+      "wraith_abi_2_investigation": 3,
+      "wraith_abi_2_medicine": 1,
+      "wraith_abi_2_occult": 3,
+      "wraith_abi_2_politics": 3,
+      "wraith_abi_2_science": 1,
+      "wraith_abi_2_technology": 1,
+      "wraith_adv_0_0_dots": 3,
+      "wraith_adv_0_1_dots": 4,
+      "wraith_adv_0_2_dots": 2,
+      "wraith_adv_0_3_dots": 2,
+      "wraith_adv_1_0_dots": 3,
+      "wraith_adv_1_1_dots": 2,
+      "wraith_adv_2_0_dots": 3,
+      "wraith_adv_2_1_dots": 2,
+      "wraith_adv_2_2_dots": 3,
+      "wraith_adv_2_3_dots": 2,
+      "wraith_corpus_dots": 10,
+      "wraith_corpus_sq": 10,
+      "wraith_wp_dots": 7,
+      "wraith_wp_sq": 7,
+      "wraith_pathos_sq": 10,
+      "wraith_psyche_wp": 6,
+      "wraith_angst": 4,
+      "wraith_angst_sq": 4
+    },
+    "health": {}
+  },
+  "wraith_ferryman": {
+    "splat": "wraith",
+    "isTenDotMode": true,
+    "inputs": {
+      "wraith_char_name": "Cassian of Stygia",
+      "wraith_char_nature": "Pedagogue",
+      "wraith_char_life": "Harbor Navigator (79 AD)",
+      "wraith_char_player": "Sample",
+      "wraith_char_demeanor": "Judge",
+      "wraith_char_death": "Pyroclastic Ash (Pompeii)",
+      "wraith_char_chronicle": "Byways of the Tempest",
+      "wraith_char_shadow": "The Despairer",
+      "wraith_char_regret": "Those Left on the Pier",
+      "wraith_adv_0_0_name": "Eidolon",
+      "wraith_adv_0_1_name": "Artifact (Lantern of the Sunless Sea)",
+      "wraith_adv_0_2_name": "Artifact (Soulsteel Oar-Staff)",
+      "wraith_adv_0_3_name": "Memoriam",
+      "wraith_adv_0_4_name": "Status (Ferryman)",
+      "wraith_adv_1_0_name": "Argos",
+      "wraith_adv_1_1_name": "Castigate",
+      "wraith_adv_1_2_name": "Fatalism",
+      "wraith_adv_1_3_name": "Keening",
+      "wraith_adv_1_4_name": "Moliate",
+      "wraith_adv_2_0_name": "Passion: Guide Lost Souls Across the Tempest",
+      "wraith_adv_2_1_name": "Passion: Defy the Hunger of Oblivion",
+      "wraith_adv_2_2_name": "Fetter: Bronze Harbor Astrolabe",
+      "wraith_adv_2_3_name": "Fetter: Sunken Roman Breakwater",
+      "wraith_p2_custom": "Order: The Ferrymen.",
+      "wraith_combat_0_0": "Soulsteel Oar-Staff",
+      "wraith_combat_0_1": "6",
+      "wraith_combat_0_2": "Str+3 Agg",
+      "wraith_combat_0_3": "Melee",
+      "wraith_combat_0_4": "—",
+      "wraith_combat_0_5": "—",
+      "wraith_combat_0_6": "None",
+      "wraith_combat_0_7": "0",
+      "wraith_combat_1_0": "Phantom Bolas (Argos 5)",
+      "wraith_combat_1_1": "6",
+      "wraith_combat_1_2": "5 Agg",
+      "wraith_combat_1_3": "30 yds",
+      "wraith_combat_1_4": "1",
+      "wraith_combat_1_5": "Pathos",
+      "wraith_combat_1_6": "None",
+      "wraith_combat_1_7": "2",
+      "wraith_armor_class": "Stygian Mariner's Cloak",
+      "wraith_armor_rating": "3",
+      "wraith_armor_penalty": "0",
+      "wraith_exp_bgs": "Eidolon 5: Deeply integrated Psyche capable of withstanding Maelstrom storms.\nArtifact 5: Lantern of the Sunless Sea reveals hidden Byways.",
+      "wraith_gear": "Lantern of the Sunless Sea, soulsteel oar-staff, silver obols.",
+      "wraith_locations": "A black-wood skiff moored at the edge of the Sea of Shadows.",
+      "wraith_history": "Perished trying to ferry refugees from the Bay of Naples during the eruption of Vesuvius; took up the Ferryman's oar to guide souls past the Labyrinth.",
+      "wraith_desc": "Age: 44 at death (79 AD) | Hair: Salt-white curls | Eyes: Luminous silver | Height: 5'11\"",
+      "wraith_psyche": "Cassian",
+      "wraith_archetype": "The Despairer",
+      "wraith_shadowguide": "Storyteller",
+      "wraith_thorns": "Shadow Song, Whispers",
+      "wraith_darkpassions": "Surrender the skiff to the Tempest (4)",
+      "wraith_merit_0_name": "Iron Will",
+      "wraith_merit_0_type": "Mental",
+      "wraith_merit_0_cost": "3 pt.",
+      "wraith_merit_1_name": "Tempest-Wise",
+      "wraith_merit_1_type": "Supernatural",
+      "wraith_merit_1_cost": "3 pt.",
+      "wraith_flaw_0_name": "Dark Fate",
+      "wraith_flaw_0_type": "Supernatural",
+      "wraith_flaw_0_cost": "5 pt.",
+      "wraith_armor_description": "Hardened soulsteel-threaded mantle",
+      "wraith_attr_str_spec": "Oar-Born Strength",
+      "wraith_attr_dex_spec": "Sure-Footed",
+      "wraith_attr_sta_spec": "Storm-Tempered",
+      "wraith_attr_cha_spec": "Steady Beacon",
+      "wraith_attr_man_spec": "Solemn Bargains",
+      "wraith_attr_app_spec": "Luminous Poise",
+      "wraith_attr_per_spec": "Tempest Sight",
+      "wraith_attr_int_spec": "Byway Cartography",
+      "wraith_attr_wit_spec": "Maelstrom Reflexes",
+      "wraith_abi_0_alertness_spec": "Spectre Ambushes",
+      "wraith_abi_0_athletics_spec": "Skiff Balance",
+      "wraith_abi_0_awareness_spec": "Shroud Tears",
+      "wraith_abi_0_brawl_spec": "Unarmed Defense",
+      "wraith_abi_0_empathy_spec": "Fetter Echoes",
+      "wraith_abi_0_expression_spec": "Dirges & Oaths",
+      "wraith_abi_0_intimidation_spec": "Reaper Gaze",
+      "wraith_abi_0_persuasion_spec": "Guiding the Lost",
+      "wraith_abi_0_subterfuge_spec": "Evading Legions",
+      "wraith_abi_1_crafts_spec": "Soulsteel Repair",
+      "wraith_abi_1_etiquette_spec": "Stygian Orders",
+      "wraith_abi_1_leadership_spec": "Harrowing Rescue",
+      "wraith_abi_1_meditation_spec": "Shadow Quieting",
+      "wraith_abi_1_melee_spec": "Ferryman Oar",
+      "wraith_abi_1_performance_spec": "Funeral Chants",
+      "wraith_abi_1_stealth_spec": "Tempest Fog",
+      "wraith_abi_2_academics_spec": "Ancient Stygia",
+      "wraith_abi_2_bureaucracy_spec": "Hierarchy Edicts",
+      "wraith_abi_2_enigmas_spec": "Labyrinth Paths",
+      "wraith_abi_2_investigation_spec": "Lost Souls",
+      "wraith_abi_2_occult_spec": "Oblivion Lore",
+      "wraith_abi_2_politics_spec": "Deathlord Treaties"
+    },
+    "dots": {
+      "wraith_attr_str": 5,
+      "wraith_attr_dex": 5,
+      "wraith_attr_sta": 6,
+      "wraith_attr_cha": 6,
+      "wraith_attr_man": 5,
+      "wraith_attr_app": 4,
+      "wraith_attr_per": 7,
+      "wraith_attr_int": 6,
+      "wraith_attr_wit": 6,
+      "wraith_abi_0_alertness": 6,
+      "wraith_abi_0_athletics": 5,
+      "wraith_abi_0_awareness": 7,
+      "wraith_abi_0_brawl": 4,
+      "wraith_abi_0_empathy": 6,
+      "wraith_abi_0_expression": 5,
+      "wraith_abi_0_intimidation": 5,
+      "wraith_abi_0_persuasion": 6,
+      "wraith_abi_0_streetwise": 3,
+      "wraith_abi_0_subterfuge": 4,
+      "wraith_abi_1_crafts": 5,
+      "wraith_abi_1_drive": 2,
+      "wraith_abi_1_etiquette": 5,
+      "wraith_abi_1_firearms": 1,
+      "wraith_abi_1_larceny": 2,
+      "wraith_abi_1_leadership": 6,
+      "wraith_abi_1_meditation": 6,
+      "wraith_abi_1_melee": 6,
+      "wraith_abi_1_performance": 4,
+      "wraith_abi_1_stealth": 5,
+      "wraith_abi_2_academics": 5,
+      "wraith_abi_2_bureaucracy": 4,
+      "wraith_abi_2_computer": 0,
+      "wraith_abi_2_enigmas": 6,
+      "wraith_abi_2_investigation": 5,
+      "wraith_abi_2_medicine": 3,
+      "wraith_abi_2_occult": 7,
+      "wraith_abi_2_politics": 4,
+      "wraith_abi_2_science": 2,
+      "wraith_abi_2_technology": 0,
+      "wraith_adv_0_0_dots": 5,
+      "wraith_adv_0_1_dots": 5,
+      "wraith_adv_0_2_dots": 4,
+      "wraith_adv_0_3_dots": 4,
+      "wraith_adv_0_4_dots": 5,
+      "wraith_adv_1_0_dots": 6,
+      "wraith_adv_1_1_dots": 6,
+      "wraith_adv_1_2_dots": 5,
+      "wraith_adv_1_3_dots": 5,
+      "wraith_adv_1_4_dots": 5,
+      "wraith_adv_2_0_dots": 4,
+      "wraith_adv_2_1_dots": 3,
+      "wraith_adv_2_2_dots": 4,
+      "wraith_adv_2_3_dots": 3,
+      "wraith_corpus_dots": 10,
+      "wraith_corpus_sq": 10,
+      "wraith_wp_dots": 10,
+      "wraith_wp_sq": 10,
+      "wraith_pathos_sq": 10,
+      "wraith_psyche_wp": 9,
+      "wraith_angst": 5,
+      "wraith_angst_sq": 5
+    },
+    "health": {}
+  }
+};
+
+const STORAGE_KEY = 'wod_1to1_sheet_v3';
+const SHARE_DOMAIN_PLACEHOLDER = 'https://wod20-charsheet-tool.vercel.app/';
+const DEFAULT_MF_ROWS = 5;
+const DEFAULT_COMBAT_ROWS = 6;
+let lastSharedSnapshot = '';
+let isTenDotMode = false;
+let isRestoring = false;
+let isSheetDirty = false;
+let pendingSampleKey = '';
+let autoSaveTimer = null;
+let resizeTimer = null;
+let currentSplat = 'mortal';
+
+const HEALTH_STATES = ['empty', 'bashing', 'lethal', 'aggravated'];
+const HEALTH_SYMBOLS = { empty: '', bashing: '/', lethal: 'X', aggravated: '*' };
+const HEALTH_PENALTIES = [
+  { label: 'Healthy (0)', cls: '' },
+  { label: '-1 Penalty', cls: 'penalty-low' },
+  { label: '-1 Penalty', cls: 'penalty-low' },
+  { label: '-2 Penalty', cls: 'penalty-low' },
+  { label: '-2 Penalty', cls: 'penalty-low' },
+  { label: '-5 Penalty', cls: 'penalty-high' },
+  { label: 'Incapacitated', cls: 'penalty-high' }
+];
+
+document.addEventListener('DOMContentLoaded', async () => {
+  document.querySelectorAll('textarea.sheet-area').forEach(ta => {
+    ta.dataset.defaultHeight = ta.style.height || '';
+  });
+  syncAppBarOffset();
+  initDotsAndBoxes();
+  initHealthBoxes();
+  bindControls();
+  bindDragAndDrop();
+  bindGuide();
+  updateGuidePanel();
+  registerServiceWorker();
+
+  const loaded = await checkUrlForCharacter();
+  if (!loaded) {
+    restoreFromLocalStorage();
+  } else {
+    isRestoring = true;
+    switchSplat(currentSplat);
+    isRestoring = false;
+    scheduleAutoSave();
+  }
+  isSheetDirty = false;
+});
+
+function bindControls() {
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      saveAsJson();
+      showToast('Saved JSON to Disk');
+      return;
+    }
+    if (e.key === 'Escape') {
+      const hardResetModal = document.getElementById('hardResetModal');
+      if (hardResetModal && hardResetModal.style.display !== 'none') {
+        hardResetModal.style.display = 'none';
+        return;
+      }
+      const clearModal = document.getElementById('clearModal');
+      if (clearModal && clearModal.style.display !== 'none') {
+        clearModal.style.display = 'none';
+        return;
+      }
+      const sampleModal = document.getElementById('sampleConfirmModal');
+      if (sampleModal && sampleModal.style.display !== 'none') {
+        sampleModal.style.display = 'none';
+        document.getElementById('sampleCharSelect').value = '';
+        pendingSampleKey = '';
+        return;
+      }
+      const guidePanel = document.getElementById('guidePanel');
+      if (guidePanel && guidePanel.classList.contains('open')) {
+        guidePanel.classList.remove('open');
+        const toggleBtn = document.getElementById('toggleGuideBtn');
+        if (toggleBtn) toggleBtn.focus();
+      }
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    syncAppBarOffset();
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const active = document.getElementById('splat-' + currentSplat);
+      if (active) autoResizeTextareas(active);
+    }, 150);
+  });
+
+  window.addEventListener('scroll', updateActiveQuickNav, { passive: true });
+
+  // Quick-Jump Section Bar
+  document.querySelectorAll('.quick-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      jumpToSection(btn.dataset.jump);
+    });
+  });
+
+  document.getElementById('splatSelect').addEventListener('change', (e) => {
+    flushAutoSave();
+    document.getElementById('sampleCharSelect').value = '';
+    switchSplat(e.target.value);
+    isSheetDirty = false;
+  });
+
+  // Sample Character Selection with Overwrite Guard
+  document.getElementById('sampleCharSelect').addEventListener('change', (e) => {
+    const key = e.target.value;
+    if (!key) return;
+    if (isSheetDirty && hasActiveSheetData()) {
+      pendingSampleKey = key;
+      document.getElementById('sampleConfirmModal').style.display = 'flex';
+    } else {
+      loadSampleCharacter(key);
+    }
+  });
+
+  document.getElementById('cancelSampleBtn').addEventListener('click', () => {
+    document.getElementById('sampleConfirmModal').style.display = 'none';
+    document.getElementById('sampleCharSelect').value = '';
+    pendingSampleKey = '';
+  });
+
+  document.getElementById('confirmSampleBtn').addEventListener('click', () => {
+    document.getElementById('sampleConfirmModal').style.display = 'none';
+    const key = pendingSampleKey;
+    pendingSampleKey = '';
+    if (key) loadSampleCharacter(key);
+  });
+
+  document.getElementById('dotToggleBtn').addEventListener('click', () => {
+    isTenDotMode = !isTenDotMode;
+    document.body.classList.toggle('mode-10-dot', isTenDotMode);
+    document.getElementById('dotToggleBtn').textContent = isTenDotMode ? '5-Dot Mode' : '10-Dot Mode';
+    isSheetDirty = true;
+    scheduleAutoSave();
+  });
+
+  document.getElementById('resetSheetBtn').addEventListener('click', () => {
+    document.getElementById('clearModal').style.display = 'flex';
+  });
+  document.getElementById('cancelClearBtn').addEventListener('click', () => {
+    document.getElementById('clearModal').style.display = 'none';
+  });
+  document.getElementById('confirmClearBtn').addEventListener('click', () => {
+    document.getElementById('clearModal').style.display = 'none';
+    document.getElementById('sampleCharSelect').value = '';
+    clearSheet(false);
+    isSheetDirty = false;
+    showToast('Sheet Cleared');
+  });
+
+  document.getElementById('hardResetBtn').addEventListener('click', () => {
+    document.getElementById('hardResetModal').style.display = 'flex';
+  });
+  document.getElementById('cancelHardResetBtn').addEventListener('click', () => {
+    document.getElementById('hardResetModal').style.display = 'none';
+  });
+  document.getElementById('confirmHardResetBtn').addEventListener('click', () => {
+    document.getElementById('hardResetModal').style.display = 'none';
+    hardResetWebsite();
+  });
+
+  window.addEventListener('beforeprint', () => {
+    const active = document.getElementById('splat-' + currentSplat);
+    if (active) autoResizeTextareas(active);
+    ensureSyncShareLinkForPrint();
+  });
+  document.getElementById('printSheetBtn').addEventListener('click', async () => {
+    const active = document.getElementById('splat-' + currentSplat);
+    if (active) autoResizeTextareas(active);
+
+    await generateShareUrl({ copyToClipboard: true, showNotification: true });
+    window.print();
+  });
+
+  document.getElementById('shareUrlBtn').addEventListener('click', () => {
+    generateShareUrl({ copyToClipboard: true, showNotification: true });
+  });
+  document.getElementById('saveJsonBtn').addEventListener('click', saveAsJson);
+  document.getElementById('loadJsonBtn').addEventListener('click', () => document.getElementById('jsonFileInput').click());
+  document.getElementById('jsonFileInput').addEventListener('change', loadFromJson);
+
+  // Add / Remove Merit, Flaw, Advantage, Custom Ability, Combat, and Heal slots (event delegation)
+  document.getElementById('sheetForm').addEventListener('click', (e) => {
+    const addMfBtn = e.target.closest('.addTraitRowBtn');
+    if (addMfBtn) {
+      const splat = addMfBtn.dataset.splat;
+      const kind = addMfBtn.dataset.kind;
+      const row = addMeritFlawRow(splat, kind);
+      if (row) {
+        const firstInput = row.querySelector('input');
+        if (firstInput) firstInput.focus();
+      }
+      isSheetDirty = true;
+      scheduleAutoSave();
+      return;
+    }
+
+    const removeMfBtn = e.target.closest('.removeTraitRowBtn');
+    if (removeMfBtn) {
+      const tr = removeMfBtn.closest('tr');
+      const tbody = tr ? tr.parentElement : null;
+      if (tr && tbody) {
+        tr.remove();
+        reindexMeritFlawRows(tbody);
+        isSheetDirty = true;
+        scheduleAutoSave();
+      }
+      return;
+    }
+
+    const addDynBtn = e.target.closest('.addDynRowBtn');
+    if (addDynBtn) {
+      const splat = addDynBtn.dataset.splat;
+      const kind = addDynBtn.dataset.kind;
+      const row = addDynRow(splat, kind);
+      if (row) {
+        const firstInput = row.querySelector('input');
+        if (firstInput) firstInput.focus();
+      }
+      isSheetDirty = true;
+      scheduleAutoSave();
+      return;
+    }
+
+    const removeDynBtn = e.target.closest('.removeDynRowBtn');
+    if (removeDynBtn) {
+      const tr = removeDynBtn.closest('.trait-flex-row');
+      const tbody = tr ? tr.parentElement : null;
+      if (tr && tbody) {
+        tr.remove();
+        reindexDynRows(tbody);
+        updateGuideTally();
+        isSheetDirty = true;
+        scheduleAutoSave();
+      }
+      return;
+    }
+
+    const addAbiBtn = e.target.closest('.addCustomAbiBtn');
+    if (addAbiBtn) {
+      const splat = addAbiBtn.dataset.splat;
+      const cat = parseInt(addAbiBtn.dataset.cat, 10);
+      const row = addCustomAbiRow(splat, cat);
+      if (row) {
+        const firstInput = row.querySelector('input');
+        if (firstInput) firstInput.focus();
+      }
+      isSheetDirty = true;
+      scheduleAutoSave();
+      return;
+    }
+
+    const removeAbiBtn = e.target.closest('.removeCustomAbiBtn');
+    if (removeAbiBtn) {
+      const tr = removeAbiBtn.closest('.trait-flex-row');
+      const tbody = tr ? tr.parentElement : null;
+      if (tr && tbody) {
+        tr.remove();
+        reindexCustomAbiRows(tbody);
+        updateGuideTally();
+        isSheetDirty = true;
+        scheduleAutoSave();
+      }
+      return;
+    }
+
+    const addCombatBtn = e.target.closest('.addCombatRowBtn');
+    if (addCombatBtn) {
+      const splat = addCombatBtn.dataset.splat;
+      const hasPathos = addCombatBtn.dataset.pathos === '1';
+      const row = addCombatRow(splat, hasPathos);
+      if (row) {
+        const firstInput = row.querySelector('input');
+        if (firstInput) firstInput.focus();
+      }
+      isSheetDirty = true;
+      scheduleAutoSave();
+      return;
+    }
+
+    const removeCombatBtn = e.target.closest('.removeCombatRowBtn');
+    if (removeCombatBtn) {
+      const tr = removeCombatBtn.closest('tr');
+      const tbody = tr ? tr.parentElement : null;
+      if (tr && tbody) {
+        tr.remove();
+        reindexCombatRows(tbody);
+        isSheetDirty = true;
+        scheduleAutoSave();
+      }
+      return;
+    }
+
+    const healBtn = e.target.closest('.clearHealthBtn');
+    if (healBtn) {
+      const splat = healBtn.dataset.splat;
+      const container = document.getElementById('splat-' + splat);
+      if (container) {
+        container.querySelectorAll('.health-box').forEach(box => {
+          box.dataset.state = 'empty';
+          box.textContent = '';
+          updateHealthAriaLabel(box);
+        });
+        updateWoundPenalty(splat);
+        isSheetDirty = true;
+        scheduleAutoSave();
+        showToast('Health Cleared');
+      }
+    }
+  });
+
+  let activeTarget = null;
+  document.querySelectorAll('.uploadPortraitBtn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      activeTarget = e.target.dataset.target;
+      document.getElementById('globalPortraitInput').click();
+    });
+  });
+  document.getElementById('globalPortraitInput').addEventListener('change', (e) => {
+    if (!activeTarget || !e.target.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 500;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = Math.round((height * maxDim) / width); width = maxDim; }
+          else { width = Math.round((width * maxDim) / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        document.getElementById(activeTarget + '_portrait_url').value = dataUrl;
+        updatePortrait(activeTarget, dataUrl);
+        isSheetDirty = true;
+        scheduleAutoSave();
+      };
+      img.src = evt.target.result;
+    };
+    reader.readAsDataURL(e.target.files[0]);
+    e.target.value = '';
+  });
+  document.querySelectorAll('.clearPortraitBtn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const t = e.target.dataset.target;
+      document.getElementById(t + '_portrait_url').value = '';
+      updatePortrait(t, '');
+      isSheetDirty = true;
+      scheduleAutoSave();
+    });
+  });
+  document.querySelectorAll('input[id$="_portrait_url"]').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const t = e.target.id.split('_portrait_url')[0];
+      updatePortrait(t, e.target.value);
+      isSheetDirty = true;
+      scheduleAutoSave();
+    });
+  });
+
+  document.getElementById('sheetForm').addEventListener('input', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      isSheetDirty = true;
+      scheduleAutoSave();
+      if (e.target.id === currentSplat + '_char_name') {
+        updateDocumentTitle();
+      }
+    }
+  });
+}
+
+function bindDragAndDrop() {
+  let dragDepth = 0;
+  const overlay = document.getElementById('dropOverlay');
+  if (!overlay) return;
+
+  document.addEventListener('dragenter', (e) => {
+    if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+      e.preventDefault();
+      dragDepth++;
+      overlay.style.display = 'flex';
+    }
+  });
+
+  document.addEventListener('dragover', (e) => {
+    if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+      e.preventDefault();
+    }
+  });
+
+  document.addEventListener('dragleave', (e) => {
+    if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) {
+        overlay.style.display = 'none';
+      }
+    }
+  });
+
+  document.addEventListener('drop', (e) => {
+    dragDepth = 0;
+    overlay.style.display = 'none';
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      e.preventDefault();
+      const file = e.dataTransfer.files[0];
+      if (!file.name.toLowerCase().endsWith('.json') && file.type !== 'application/json') {
+        showToast('Please drop a .json character file');
+        return;
+      }
+      importJsonFile(file);
+    }
+  });
+}
+
+function syncAppBarOffset() {
+  const appBar = document.querySelector('.app-bar');
+  const height = appBar ? appBar.offsetHeight : 56;
+  document.documentElement.style.setProperty('--app-bar-height', `${height}px`);
+  return height;
+}
+
+function getSectionHeaderMap(activeContainer) {
+  const headers = Array.from(activeContainer.querySelectorAll('.wod-header'));
+  return {
+    traits: headers[0] || null,
+    mechanics: headers.find(h => h.textContent.trim().toLowerCase() === 'mechanics') || headers[1] || null,
+    gear: headers.find(h => h.textContent.trim().toLowerCase() === 'backgrounds & gear') || headers[2] || null,
+    bio: headers.find(h => h.textContent.trim().toLowerCase() === 'description & history') || headers[3] || null
+  };
+}
+
+function setActiveQuickNavButton(section) {
+  document.querySelectorAll('.quick-nav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.jump === section);
+  });
+}
+
+function updateActiveQuickNav() {
+  const active = document.getElementById('splat-' + currentSplat);
+  if (!active) return;
+  const barHeight = syncAppBarOffset();
+  const threshold = barHeight + 48;
+  const map = getSectionHeaderMap(active);
+  const order = ['traits', 'mechanics', 'gear', 'bio'];
+  let currentSection = 'traits';
+
+  for (const key of order) {
+    const el = map[key];
+    if (el && el.getBoundingClientRect().top <= threshold) {
+      currentSection = key;
+    }
+  }
+  setActiveQuickNavButton(currentSection);
+}
+
+function jumpToSection(section) {
+  const active = document.getElementById('splat-' + currentSplat);
+  if (!active) return;
+  const barHeight = syncAppBarOffset();
+  const map = getSectionHeaderMap(active);
+  const target = map[section];
+  if (!target) return;
+
+  setActiveQuickNavButton(section);
+  if (section === 'traits') {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  const top = target.getBoundingClientRect().top + window.scrollY - barHeight - 20;
+  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+}
+
+function hasActiveSheetData() {
+  const active = document.getElementById('splat-' + currentSplat);
+  if (!active) return false;
+  for (const el of active.querySelectorAll('input[type=text], textarea')) {
+    if (el.value && el.value.trim().length > 0) return true;
+  }
+  for (const el of active.querySelectorAll('.dots-container, .boxes-container')) {
+    if (parseInt(el.dataset.val || '0', 10) > 0) return true;
+  }
+  for (const el of active.querySelectorAll('.health-box')) {
+    if (el.dataset.state && el.dataset.state !== 'empty') return true;
+  }
+  return false;
+}
+
+function getTraitContextLabel(container) {
+  const row = container.closest('.trait-row, .trait-flex-row, .pool-box');
+  if (!row) return container.dataset.id || 'Trait';
+  const lbl = row.querySelector('.trait-label, .pool-title');
+  if (lbl && lbl.textContent.trim()) return lbl.textContent.trim();
+  const inp = row.querySelector('input.trait-name-input');
+  if (inp && inp.value.trim()) return inp.value.trim();
+  return container.dataset.id || 'Trait';
+}
+
+function bindDotContainer(container) {
+  const isSquare = container.classList.contains('boxes-container');
+  const childClass = isSquare ? 'square-box' : 'dot';
+  const contextLabel = getTraitContextLabel(container);
+  container.querySelectorAll('.' + childClass).forEach(el => {
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', `${contextLabel} ${isSquare ? 'box' : 'dot'} ${el.dataset.idx}`);
+    const clickHandler = () => {
+      const current = parseInt(container.dataset.val || '0', 10);
+      const idx = parseInt(el.dataset.idx, 10);
+      const next = current === idx ? Math.max(0, idx - 1) : idx;
+      container.dataset.val = next;
+      updateVisual(container, next, childClass);
+      if (!isSquare) updateGuideTally();
+      isSheetDirty = true;
+      scheduleAutoSave();
+    };
+    el.addEventListener('click', clickHandler);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        clickHandler();
+      }
+    });
+  });
+}
+
+function addMeritFlawRow(splat, kind) {
+  const tbody = document.getElementById(`${splat}_${kind}_tbody`);
+  if (!tbody) return null;
+  const idx = tbody.children.length;
+  const label = kind === 'merit' ? 'Remove Merit' : 'Remove Flaw';
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" id="${splat}_${kind}_${idx}_name"></td>
+    <td><input type="text" id="${splat}_${kind}_${idx}_type"></td>
+    <td><input type="text" id="${splat}_${kind}_${idx}_cost"></td>
+    <td class="no-print td-action"><button type="button" class="btn-icon-remove removeTraitRowBtn" title="${label}" aria-label="${label}">&times;</button></td>
+  `;
+  tbody.appendChild(tr);
+  return tr;
+}
+
+function reindexMeritFlawRows(tbody) {
+  const match = tbody.id.match(/^([a-z]+)_(merit|flaw)_tbody$/);
+  if (!match) return;
+  const [, splat, kind] = match;
+  const fields = ['name', 'type', 'cost'];
+  Array.from(tbody.querySelectorAll('tr')).forEach((tr, rowIdx) => {
+    const inputs = tr.querySelectorAll('input[type=text]');
+    fields.forEach((field, colIdx) => {
+      if (inputs[colIdx]) {
+        inputs[colIdx].id = `${splat}_${kind}_${rowIdx}_${field}`;
+      }
+    });
+  });
+}
+
+function setMeritFlawRowCount(splat, kind, count) {
+  const tbody = document.getElementById(`${splat}_${kind}_tbody`);
+  if (!tbody) return;
+  while (tbody.children.length < count) {
+    addMeritFlawRow(splat, kind);
+  }
+  while (tbody.children.length > count) {
+    tbody.lastElementChild.remove();
+  }
+  reindexMeritFlawRows(tbody);
+}
+
+function addCustomAbiRow(splat, catIdx) {
+  const tbody = document.getElementById(`${splat}_custom_abi_${catIdx}_tbody`);
+  if (!tbody) return null;
+  const idx = tbody.children.length;
+
+  const tr = document.createElement('div');
+  tr.className = 'trait-flex-row';
+
+  let html = `<input type="text" class="trait-name-input" id="${splat}_custom_abi_${catIdx}_${idx}_name" placeholder="Secondary Ability">`;
+  html += `<input type="text" class="trait-spec-input" id="${splat}_custom_abi_${catIdx}_${idx}_spec" placeholder="Spec" title="Trait Specialty (e.g. Revolvers, Fast-Talk)" aria-label="Specialty">`;
+  html += `<div class="dots-container" data-id="${splat}_custom_abi_${catIdx}_${idx}_dots" data-val="0">`;
+  for (let i = 1; i <= 10; i++) {
+    html += `<span class="dot${i > 5 ? ' dot-scalable-10' : ''}" data-idx="${i}"></span>`;
+  }
+  html += `</div>`;
+  html += `<button type="button" class="btn-icon-remove removeCustomAbiBtn no-print" style="margin-left:4px;" title="Remove Ability" aria-label="Remove Ability">&times;</button>`;
+
+  tr.innerHTML = html;
+  tbody.appendChild(tr);
+
+  const container = tr.querySelector('.dots-container');
+  bindDotContainer(container);
+  return tr;
+}
+
+function reindexCustomAbiRows(tbody) {
+  const match = tbody.id.match(/^([a-z]+)_custom_abi_(\d)_tbody$/);
+  if (!match) return;
+  const [, splat, catIdx] = match;
+  Array.from(tbody.children).forEach((row, rowIdx) => {
+    const nameInp = row.querySelector('input.trait-name-input');
+    if (nameInp) nameInp.id = `${splat}_custom_abi_${catIdx}_${rowIdx}_name`;
+    const specInp = row.querySelector('input.trait-spec-input');
+    if (specInp) specInp.id = `${splat}_custom_abi_${catIdx}_${rowIdx}_spec`;
+    const dots = row.querySelector('.dots-container');
+    if (dots) dots.dataset.id = `${splat}_custom_abi_${catIdx}_${rowIdx}_dots`;
+  });
+}
+
+function setCustomAbiRowCount(splat, catIdx, count) {
+  const tbody = document.getElementById(`${splat}_custom_abi_${catIdx}_tbody`);
+  if (!tbody) return;
+  while (tbody.children.length < count) {
+    addCustomAbiRow(splat, catIdx);
+  }
+  while (tbody.children.length > count) {
+    tbody.lastElementChild.remove();
+  }
+  reindexCustomAbiRows(tbody);
+}
+
+function addCombatRow(splat, hasPathos = (splat === 'wraith')) {
+  const tbody = document.getElementById(`${splat}_combat_tbody`);
+  if (!tbody) return null;
+  const idx = tbody.children.length;
+  const cols = hasPathos ? 8 : 7;
+  let cells = '';
+  for (let c = 0; c < cols; c++) {
+    cells += `<td><input type="text" id="${splat}_combat_${idx}_${c}"></td>`;
+  }
+  const tr = document.createElement('tr');
+  tr.innerHTML = `${cells}<td class="no-print td-action"><button type="button" class="btn-icon-remove removeCombatRowBtn" title="Remove Attack" aria-label="Remove Attack">&times;</button></td>`;
+  tbody.appendChild(tr);
+  return tr;
+}
+
+function reindexCombatRows(tbody) {
+  const match = tbody.id.match(/^([a-z]+)_combat_tbody$/);
+  if (!match) return;
+  const splat = match[1];
+  Array.from(tbody.querySelectorAll('tr')).forEach((tr, rowIdx) => {
+    const inputs = tr.querySelectorAll('input[type=text]');
+    inputs.forEach((inp, colIdx) => {
+      inp.id = `${splat}_combat_${rowIdx}_${colIdx}`;
+    });
+  });
+}
+
+function setCombatRowCount(splat, count) {
+  const tbody = document.getElementById(`${splat}_combat_tbody`);
+  if (!tbody) return;
+  const hasPathos = (splat === 'wraith');
+  while (tbody.children.length < count) {
+    addCombatRow(splat, hasPathos);
+  }
+  while (tbody.children.length > count) {
+    tbody.lastElementChild.remove();
+  }
+  reindexCombatRows(tbody);
+}
+
+function loadSampleCharacter(key) {
+  if (!key) return;
+  const sample = SAMPLE_CHARACTERS[key];
+  if (!sample) return;
+
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = null;
+
+  isRestoring = true;
+  clearSheet(true, sample.splat);
+  restoreState(sample);
+  switchSplat(sample.splat);
+  isRestoring = false;
+  isSheetDirty = false;
+
+  saveNow();
+  const charName = (sample.inputs && sample.inputs[sample.splat + '_char_name']) || key;
+  showToast('Loaded Sample: ' + charName);
+}
+
+function updatePortrait(splat, url) {
+  const img = document.getElementById(splat + '_portraitImg');
+  const ph = document.querySelector(`#${splat}_portraitContainer .portraitPlaceholder`);
+  if (!img) return;
+  img.onerror = () => {
+    img.style.display = 'none';
+    if (ph) ph.style.display = 'block';
+  };
+  if (url && url.trim().length > 0) {
+    img.src = url.trim();
+    img.style.display = 'block';
+    if (ph) ph.style.display = 'none';
+  } else {
+    img.removeAttribute('src');
+    img.style.display = 'none';
+    if (ph) ph.style.display = 'block';
+  }
+}
+
+function resetTenDotModeUI() {
+  isTenDotMode = false;
+  document.body.classList.remove('mode-10-dot');
+  document.getElementById('dotToggleBtn').textContent = '10-Dot Mode';
+}
+
+function switchSplat(splat) {
+  currentSplat = splat;
+  document.body.dataset.splat = splat;
+  document.getElementById('splatSelect').value = splat;
+  document.querySelectorAll('.splat-container').forEach(c => c.style.display = 'none');
+  const active = document.getElementById('splat-' + splat);
+  if (active) {
+    active.style.display = 'block';
+    updateWoundPenalty(splat);
+    updateActiveQuickNav();
+    updateGuidePanel();
+    requestAnimationFrame(() => autoResizeTextareas(active));
+  }
+
+  if (!isRestoring) {
+    isRestoring = true;
+    let restored = false;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const globalState = JSON.parse(saved);
+        if (globalState.sheets && globalState.sheets[splat]) {
+          restoreState(globalState.sheets[splat]);
+          restored = true;
+        }
+      }
+    } catch (e) {}
+    if (!restored) {
+      resetTenDotModeUI();
+      clearSheet(true, splat);
+    }
+    isRestoring = false;
+    saveNow();
+  }
+}
+
+function initDotsAndBoxes() {
+  document.querySelectorAll('.dots-container, .boxes-container').forEach(container => {
+    bindDotContainer(container);
+  });
+}
+
+function updateVisual(container, val, childClass) {
+  container.querySelectorAll('.' + childClass).forEach(el => {
+    el.classList.toggle('filled', parseInt(el.dataset.idx, 10) <= val);
+  });
+}
+
+function updateHealthAriaLabel(box) {
+  const row = box.closest('tr');
+  const labelCell = row ? row.querySelector('.ht-label') : null;
+  const levelName = labelCell ? labelCell.textContent.trim() : (box.dataset.id || 'Health');
+  const state = box.dataset.state || 'empty';
+  box.setAttribute('aria-label', `${levelName}: ${state}`);
+}
+
+function getTrackPenaltyIndex(splat, prefix) {
+  const container = document.getElementById('splat-' + splat);
+  if (!container) return 0;
+  let worstIdx = 0;
+  for (let i = 0; i < 7; i++) {
+    const box = container.querySelector(`[data-id="${prefix}_${i}"]`);
+    if (box && box.dataset.state && box.dataset.state !== 'empty') {
+      worstIdx = i;
+    }
+  }
+  return worstIdx;
+}
+
+function updateWoundPenalty(splat = currentSplat) {
+  const badge = document.getElementById(`${splat}_wound_badge`);
+  if (!badge) return;
+
+  badge.classList.remove('penalty-low', 'penalty-high');
+
+  if (splat === 'changeling') {
+    const realIdx = getTrackPenaltyIndex('changeling', 'changeling_hlth_real');
+    const chimIdx = getTrackPenaltyIndex('changeling_hlth_chim');
+    const shortLabels = ['0', '-1', '-1', '-2', '-2', '-5', 'Incap'];
+    badge.textContent = `R: ${shortLabels[realIdx]} | C: ${shortLabels[chimIdx]}`;
+    const worst = Math.max(realIdx, chimIdx);
+    if (HEALTH_PENALTIES[worst].cls) badge.classList.add(HEALTH_PENALTIES[worst].cls);
+  } else {
+    const idx = getTrackPenaltyIndex(splat, `${splat}_hlth`);
+    const info = HEALTH_PENALTIES[idx];
+    badge.textContent = info.label;
+    if (info.cls) badge.classList.add(info.cls);
+  }
+}
+
+function initHealthBoxes() {
+  document.querySelectorAll('.health-box').forEach(box => {
+    box.dataset.state = 'empty';
+    box.setAttribute('tabindex', '0');
+    box.setAttribute('role', 'button');
+    updateHealthAriaLabel(box);
+    const clickHandler = () => {
+      const curState = box.dataset.state || 'empty';
+      const nextIdx = (HEALTH_STATES.indexOf(curState) + 1) % HEALTH_STATES.length;
+      box.dataset.state = HEALTH_STATES[nextIdx];
+      box.textContent = HEALTH_SYMBOLS[HEALTH_STATES[nextIdx]];
+      updateHealthAriaLabel(box);
+      const splat = (box.dataset.id || '').split('_')[0] || currentSplat;
+      updateWoundPenalty(splat);
+      isSheetDirty = true;
+      scheduleAutoSave();
+    };
+    box.addEventListener('click', clickHandler);
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        clickHandler();
+      }
+    });
+  });
+}
+
+function captureCurrentState() {
+  const activeContainer = document.getElementById('splat-' + currentSplat);
+  if (!activeContainer) return {};
+
+  const meritTbody = document.getElementById(`${currentSplat}_merit_tbody`);
+  const flawTbody = document.getElementById(`${currentSplat}_flaw_tbody`);
+  const combatTbody = document.getElementById(`${currentSplat}_combat_tbody`);
+  const dynCounts = {};
+  for (let i = 0; i <= 2; i++) {
+    const dTb = document.getElementById(`${currentSplat}_adv_${i}_tbody`);
+    if (dTb) dynCounts[`adv_${i}`] = dTb.children.length;
+  }
+  const customAbiCounts = {};
+  for (let c = 0; c <= 2; c++) {
+    const aTb = document.getElementById(`${currentSplat}_custom_abi_${c}_tbody`);
+    if (aTb) customAbiCounts[`cat_${c}`] = aTb.children.length;
+  }
+
+  const state = {
+    splat: currentSplat,
+    isTenDotMode: isTenDotMode,
+    meritCount: meritTbody ? meritTbody.children.length : DEFAULT_MF_ROWS,
+    flawCount: flawTbody ? flawTbody.children.length : DEFAULT_MF_ROWS,
+    combatCount: combatTbody ? combatTbody.children.length : DEFAULT_COMBAT_ROWS,
+    dynCounts: dynCounts,
+    customAbiCounts: customAbiCounts,
+    inputs: {},
+    dots: {},
+    health: {}
+  };
+
+  activeContainer.querySelectorAll('input[type=text], textarea').forEach(el => {
+    if (el.id) state.inputs[el.id] = el.value;
+  });
+  activeContainer.querySelectorAll('.dots-container, .boxes-container').forEach(el => {
+    if (el.dataset.id) state.dots[el.dataset.id] = parseInt(el.dataset.val || '0', 10);
+  });
+  activeContainer.querySelectorAll('.health-box').forEach(el => {
+    if (el.dataset.id) state.health[el.dataset.id] = el.dataset.state || 'empty';
+  });
+  return state;
+}
+
+function restoreState(state) {
+  if (!state || !state.splat) return;
+  isTenDotMode = !!state.isTenDotMode;
+  document.body.classList.toggle('mode-10-dot', isTenDotMode);
+  document.getElementById('dotToggleBtn').textContent = isTenDotMode ? '5-Dot Mode' : '10-Dot Mode';
+
+  currentSplat = state.splat;
+  document.body.dataset.splat = state.splat;
+  document.getElementById('splatSelect').value = state.splat;
+  const active = document.getElementById('splat-' + state.splat);
+  if (!active) return;
+
+  let maxMeritIdx = -1;
+  let maxFlawIdx = -1;
+  let maxCombatIdx = -1;
+  const dynMax = { adv_0: -1, adv_1: -1, adv_2: -1 };
+  const abiMax = { cat_0: -1, cat_1: -1, cat_2: -1 };
+
+  if (state.inputs) {
+    const mRe = new RegExp(`^${state.splat}_merit_(\\d+)_`);
+    const fRe = new RegExp(`^${state.splat}_flaw_(\\d+)_`);
+    const cRe = new RegExp(`^${state.splat}_combat_(\\d+)_`);
+    for (const id of Object.keys(state.inputs)) {
+      const mm = id.match(mRe);
+      if (mm) maxMeritIdx = Math.max(maxMeritIdx, parseInt(mm[1], 10));
+      const fm = id.match(fRe);
+      if (fm) maxFlawIdx = Math.max(maxFlawIdx, parseInt(fm[1], 10));
+      const cm = id.match(cRe);
+      if (cm) maxCombatIdx = Math.max(maxCombatIdx, parseInt(cm[1], 10));
+      for (let i = 0; i <= 2; i++) {
+        const dm = id.match(new RegExp(`^${state.splat}_adv_${i}_(\\d+)_`));
+        if (dm) dynMax[`adv_${i}`] = Math.max(dynMax[`adv_${i}`], parseInt(dm[1], 10));
+        const am = id.match(new RegExp(`^${state.splat}_custom_abi_${i}_(\\d+)_`));
+        if (am) abiMax[`cat_${i}`] = Math.max(abiMax[`cat_${i}`], parseInt(am[1], 10));
+      }
+    }
+  }
+  const targetMeritCount = typeof state.meritCount === 'number'
+    ? Math.max(state.meritCount, maxMeritIdx + 1)
+    : Math.max(DEFAULT_MF_ROWS, maxMeritIdx + 1);
+  const targetFlawCount = typeof state.flawCount === 'number'
+    ? Math.max(state.flawCount, maxFlawIdx + 1)
+    : Math.max(DEFAULT_MF_ROWS, maxFlawIdx + 1);
+  const targetCombatCount = typeof state.combatCount === 'number'
+    ? Math.max(state.combatCount, maxCombatIdx + 1)
+    : Math.max(DEFAULT_COMBAT_ROWS, maxCombatIdx + 1);
+
+  setMeritFlawRowCount(state.splat, 'merit', targetMeritCount);
+  setMeritFlawRowCount(state.splat, 'flaw', targetFlawCount);
+  setCombatRowCount(state.splat, targetCombatCount);
+
+  if (state.dynCounts) {
+    for (const [k, c] of Object.entries(state.dynCounts)) {
+      setDynRowCount(state.splat, k, Math.max(c, dynMax[k] + 1));
+    }
+  } else {
+    for (let i = 0; i <= 2; i++) {
+      const defRows = (state.splat === 'wraith' && i === 1) || (state.splat === 'mortal' && i === 0) ? 10 : 6;
+      setDynRowCount(state.splat, `adv_${i}`, Math.max(defRows, dynMax[`adv_${i}`] + 1));
+    }
+  }
+
+  for (let c = 0; c <= 2; c++) {
+    const savedCount = (state.customAbiCounts && typeof state.customAbiCounts[`cat_${c}`] === 'number')
+      ? state.customAbiCounts[`cat_${c}`]
+      : 0;
+    setCustomAbiRowCount(state.splat, c, Math.max(savedCount, abiMax[`cat_${c}`] + 1));
+  }
+
+  if (state.inputs) {
+    for (const [id, val] of Object.entries(state.inputs)) {
+      const el = document.getElementById(id);
+      if (el) el.value = val;
+      if (id.endsWith('_portrait_url')) updatePortrait(state.splat, val);
+    }
+  }
+  if (state.dots) {
+    for (const [id, val] of Object.entries(state.dots)) {
+      const el = active.querySelector(`[data-id="${id}"]`);
+      if (el) {
+        el.dataset.val = val;
+        updateVisual(el, val, el.classList.contains('boxes-container') ? 'square-box' : 'dot');
+      }
+    }
+  }
+  if (state.health) {
+    for (const [id, val] of Object.entries(state.health)) {
+      const el = active.querySelector(`[data-id="${id}"]`);
+      if (el) {
+        el.dataset.state = val;
+        el.textContent = HEALTH_SYMBOLS[val] || '';
+        updateHealthAriaLabel(el);
+      }
+    }
+  }
+  updateWoundPenalty(state.splat);
+  updateDocumentTitle();
+  updateGuideTally();
+  requestAnimationFrame(() => autoResizeTextareas(active));
+}
+
+
+function resetAttributesToDefault(targetSplat) {
+  const active = document.getElementById('splat-' + targetSplat);
+  if (!active) return;
+  
+  const attrs = ['str', 'dex', 'sta', 'cha', 'man', 'app', 'per', 'int', 'wit'];
+  attrs.forEach(attr => {
+    const el = active.querySelector(`[data-id="${targetSplat}_attr_${attr}"]`);
+    if (el) {
+      el.dataset.val = '1';
+      updateVisual(el, 1, 'dot');
+    }
+  });
+}
+
+function clearSheet(silent = false, targetSplat = currentSplat) {
+  const active = document.getElementById('splat-' + targetSplat);
+  if (!active) return;
+  if (targetSplat === currentSplat) {
+    resetTenDotModeUI();
+  }
+  setMeritFlawRowCount(targetSplat, 'merit', DEFAULT_MF_ROWS);
+  setMeritFlawRowCount(targetSplat, 'flaw', DEFAULT_MF_ROWS);
+  setCombatRowCount(targetSplat, DEFAULT_COMBAT_ROWS);
+  for (let i = 0; i <= 2; i++) {
+    const defRows = (targetSplat === 'wraith' && i === 1) || (targetSplat === 'mortal' && i === 0) ? 10 : 6;
+    setDynRowCount(targetSplat, `adv_${i}`, defRows);
+    setCustomAbiRowCount(targetSplat, i, 0);
+  }
+  active.querySelectorAll('input[type=text], textarea').forEach(el => {
+    el.value = '';
+    if (el.tagName === 'TEXTAREA' && el.dataset.defaultHeight) {
+      el.style.height = el.dataset.defaultHeight;
+    }
+  });
+  active.querySelectorAll('.dots-container, .boxes-container').forEach(el => {
+    el.dataset.val = '0';
+    updateVisual(el, 0, el.classList.contains('boxes-container') ? 'square-box' : 'dot');
+  });
+  resetAttributesToDefault(targetSplat);
+  active.querySelectorAll('.health-box').forEach(el => {
+    el.dataset.state = 'empty';
+    el.textContent = '';
+    updateHealthAriaLabel(el);
+  });
+  updateWoundPenalty(targetSplat);
+  updatePortrait(targetSplat, '');
+  updateDocumentTitle();
+  if (targetSplat === currentSplat) updateGuideTally();
+  if (!silent) saveNow();
+}
+
+function hardResetWebsite() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = null;
+
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (e) {}
+
+  lastSharedSnapshot = '';
+  const pdfLink = document.getElementById('pdfShareLink');
+  if (pdfLink) pdfLink.href = getShareBaseUrl();
+  if (window.location.hash) {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+
+  document.getElementById('sampleCharSelect').value = '';
+  pendingSampleKey = '';
+  resetTenDotModeUI();
+
+  const guidePanel = document.getElementById('guidePanel');
+  if (guidePanel) guidePanel.classList.remove('open');
+
+  isRestoring = true;
+  ['mortal', 'vampire', 'werewolf', 'mage', 'changeling', 'wraith'].forEach(sp => {
+    clearSheet(true, sp);
+  });
+  switchSplat('mortal');
+  isRestoring = false;
+  isSheetDirty = false;
+
+  const badge = document.getElementById('autosaveIndicator');
+  if (badge) {
+    badge.textContent = 'Auto-Save Ready';
+    badge.classList.remove('saved');
+  }
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  showToast('Website Reset to Defaults');
+}
+
+
+function saveNow() {
+  if (isRestoring) return;
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = null;
+  const badge = document.getElementById('autosaveIndicator');
+  let globalState = {};
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) globalState = JSON.parse(saved);
+  } catch (e) {}
+  globalState.activeSplat = currentSplat;
+  if (!globalState.sheets) globalState.sheets = {};
+  globalState.sheets[currentSplat] = captureCurrentState();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(globalState));
+  badge.textContent = 'Saved Locally';
+  badge.classList.add('saved');
+}
+
+function flushAutoSave() {
+  if (autoSaveTimer !== null) {
+    saveNow();
+  }
+}
+
+function scheduleAutoSave() {
+  if (isRestoring) return;
+  clearTimeout(autoSaveTimer);
+  const badge = document.getElementById('autosaveIndicator');
+  badge.textContent = 'Saving...';
+  badge.classList.remove('saved');
+  autoSaveTimer = setTimeout(() => {
+    saveNow();
+  }, 500);
+}
+
+function restoreFromLocalStorage() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const globalState = JSON.parse(saved);
+      if (globalState.activeSplat) currentSplat = globalState.activeSplat;
+      switchSplat(currentSplat);
+      document.getElementById('autosaveIndicator').textContent = 'Restored Session';
+      document.getElementById('autosaveIndicator').classList.add('saved');
+    } else {
+      switchSplat('mortal');
+    }
+  } catch (e) {
+    switchSplat('mortal');
+  }
+}
+
+function showToast(msg) {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast show';
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
+}
+
+function getShareBaseUrl() {
+  const { protocol, hostname, origin, pathname } = window.location;
+  const isLocal =
+    protocol === 'file:' ||
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '0.0.0.0' ||
+    hostname === '::1' ||
+    hostname.endsWith('.local');
+  if (isLocal) {
+    return SHARE_DOMAIN_PLACEHOLDER.replace(/\/+$/, '') + '/';
+  }
+  return origin + pathname;
+}
+
+const V3_SPLATS = ['mortal', 'vampire', 'werewolf', 'mage', 'changeling', 'wraith'];
+const V3_B79_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~!$()*+,;=:@/?";
+const V3_B79_BASE = BigInt(V3_B79_ALPHABET.length); // 79
+const V3_B79_REV = Object.fromEntries([...V3_B79_ALPHABET].map((c, i) => [c, BigInt(i)]));
+
+const V3_TOKEN_BYTES = Array.from({ length: 31 }, (_, i) => i + 1).filter(b => b !== 9 && b !== 10 && b !== 13);
+const V3_DICT_STRINGS = [
+  "aggravated", "Willpower", "Strength", "Dexterity", "Stamina",
+  "Charisma", "Manipulation", "Appearance", "Perception", "Intelligence",
+  "Generation", "Discipline", "Background", "Resources", "Allies",
+  "Contacts", "Retainers", "Influence", "Mentor", "Status",
+  " the ", " and ", " of ", " to ", " in ", " with ", " for ", "ing "
+];
+
+function bytesToBase79(bytes) {
+  if (!bytes || bytes.length === 0) return '';
+  let n = 1n; // 0x01 sentinel preserves leading 0x00 bytes
+  for (let i = 0; i < bytes.length; i++) {
+    n = (n << 8n) | BigInt(bytes[i]);
+  }
+  const chars = [];
+  while (n > 0n) {
+    const rem = Number(n % V3_B79_BASE);
+    n = n / V3_B79_BASE;
+    chars.push(V3_B79_ALPHABET[rem]);
+  }
+  return chars.reverse().join('');
+}
+
+function base79ToBytes(str) {
+  if (!str) return new Uint8Array(0);
+  let n = 0n;
+  for (let i = 0; i < str.length; i++) {
+    const v = V3_B79_REV[str[i]];
+    if (v === undefined) throw new Error('Invalid Base79 character');
+    n = n * V3_B79_BASE + v;
+  }
+  const hex = n.toString(16).padStart(2, '0');
+  const paddedHex = hex.length % 2 ? '0' + hex : hex;
+  const out = new Uint8Array(paddedHex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(paddedHex.slice(i * 2, i * 2 + 2), 16);
+  }
+  if (out[0] !== 1) throw new Error('Invalid sentinel byte');
+  return out.slice(1);
+}
+
+function writeVarint(arr, val) {
+  let v = val >>> 0;
+  while (v >= 0x80) {
+    arr.push((v & 0x7f) | 0x80);
+    v >>>= 7;
+  }
+  arr.push(v);
+}
+
+function readVarint(bytes, state) {
+  let val = 0;
+  let shift = 0;
+  while (state.pos < bytes.length) {
+    const b = bytes[state.pos++];
+    val |= (b & 0x7f) << shift;
+    if ((b & 0x80) === 0) return val >>> 0;
+    shift += 7;
+  }
+  throw new Error('Truncated varint');
+}
+
+function dictEncodeUtf8(str) {
+  const raw = new TextEncoder().encode(str);
+  const tokenSet = new Set(V3_TOKEN_BYTES);
+  const escaped = [];
+  for (let i = 0; i < raw.length; i++) {
+    const b = raw[i];
+    if (b === 0 || tokenSet.has(b)) escaped.push(0);
+    escaped.push(b);
+  }
+  let latin = '';
+  for (let i = 0; i < escaped.length; i++) latin += String.fromCharCode(escaped[i]);
+  const pairs = V3_DICT_STRINGS
+    .map((word, idx) => ({ word, tok: String.fromCharCode(V3_TOKEN_BYTES[idx]) }))
+    .sort((a, b) => b.word.length - a.word.length);
+  for (const { word, tok } of pairs) {
+    latin = latin.split(word).join(tok);
+  }
+  const out = new Uint8Array(latin.length);
+  for (let i = 0; i < latin.length; i++) out[i] = latin.charCodeAt(i);
+  return out;
+}
+
+function dictDecodeUtf8(bytes) {
+  const tokMap = new Map();
+  V3_TOKEN_BYTES.forEach((b, idx) => tokMap.set(b, new TextEncoder().encode(V3_DICT_STRINGS[idx])));
+  const out = [];
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i];
+    if (b === 0) {
+      out.push(bytes[++i]);
+    } else if (tokMap.has(b)) {
+      const seq = tokMap.get(b);
+      for (let j = 0; j < seq.length; j++) out.push(seq[j]);
+    } else {
+      out.push(b);
+    }
+  }
+  return new TextDecoder().decode(new Uint8Array(out));
+}
+
+function getDefaultAdvRowCount(splat, advIdx) {
+  return (splat === 'wraith' && advIdx === 1) || (splat === 'mortal' && advIdx === 0) ? 10 : 6;
+}
+
+function packStateBinary(state) {
+  const sp = state.splat;
+  const spIdx = Math.max(0, V3_SPLATS.indexOf(sp));
+  const container = document.getElementById('splat-' + sp);
+
+  const counts = [
+    state.meritCount ?? DEFAULT_MF_ROWS,
+    state.flawCount ?? DEFAULT_MF_ROWS,
+    state.combatCount ?? DEFAULT_COMBAT_ROWS,
+    state.dynCounts?.adv_0 ?? getDefaultAdvRowCount(sp, 0),
+    state.dynCounts?.adv_1 ?? getDefaultAdvRowCount(sp, 1),
+    state.dynCounts?.adv_2 ?? getDefaultAdvRowCount(sp, 2),
+    state.customAbiCounts?.cat_0 ?? 0,
+    state.customAbiCounts?.cat_1 ?? 0,
+    state.customAbiCounts?.cat_2 ?? 0
+  ];
+  const defaults = [
+    DEFAULT_MF_ROWS, DEFAULT_MF_ROWS, DEFAULT_COMBAT_ROWS,
+    getDefaultAdvRowCount(sp, 0), getDefaultAdvRowCount(sp, 1), getDefaultAdvRowCount(sp, 2),
+    0, 0, 0
+  ];
+  const hasCustomCounts = counts.some((c, i) => c !== defaults[i]);
+
+  const buf = [];
+  const flags = (spIdx & 0x07) | ((state.isTenDotMode ? 1 : 0) << 3) | ((hasCustomCounts ? 1 : 0) << 4);
+  buf.push(flags);
+  if (hasCustomCounts) {
+    counts.forEach(c => writeVarint(buf, c));
+  }
+
+  const dotEls = container ? Array.from(container.querySelectorAll('.dots-container, .boxes-container')) : [];
+  const dotBytes = [];
+  for (let i = 0; i < dotEls.length; i += 2) {
+    const hi = Math.max(0, Math.min(15, state.dots?.[dotEls[i].dataset.id] ?? 0));
+    const lo = i + 1 < dotEls.length ? Math.max(0, Math.min(15, state.dots?.[dotEls[i + 1].dataset.id] ?? 0)) : 0;
+    dotBytes.push((hi << 4) | lo);
+  }
+  while (dotBytes.length > 0 && dotBytes[dotBytes.length - 1] === 0) dotBytes.pop();
+  writeVarint(buf, dotBytes.length);
+  buf.push(...dotBytes);
+
+  const healthEls = container ? Array.from(container.querySelectorAll('.health-box')) : [];
+  const healthBytes = [];
+  for (let i = 0; i < healthEls.length; i += 4) {
+    let b = 0;
+    for (let j = 0; j < 4; j++) {
+      const idx = i + j;
+      const stName = idx < healthEls.length ? (state.health?.[healthEls[idx].dataset.id] || 'empty') : 'empty';
+      const code = Math.max(0, HEALTH_STATES.indexOf(stName));
+      b |= (code & 0x03) << (6 - j * 2);
+    }
+    healthBytes.push(b);
+  }
+  while (healthBytes.length > 0 && healthBytes[healthBytes.length - 1] === 0) healthBytes.pop();
+  writeVarint(buf, healthBytes.length);
+  buf.push(...healthBytes);
+
+  const inputEls = container ? Array.from(container.querySelectorAll('input[type=text], textarea')) : [];
+  const entries = [];
+  inputEls.forEach((el, idx) => {
+    if (!el.id) return;
+    const val = state.inputs?.[el.id] ?? '';
+    if (val !== '') {
+      entries.push({ idx, bytes: dictEncodeUtf8(val) });
+    }
+  });
+
+  writeVarint(buf, entries.length);
+  let prevIdx = 0;
+  for (const e of entries) {
+    writeVarint(buf, e.idx - prevIdx);
+    prevIdx = e.idx;
+  }
+  for (const e of entries) {
+    writeVarint(buf, e.bytes.length);
+  }
+  for (const e of entries) {
+    for (let i = 0; i < e.bytes.length; i++) buf.push(e.bytes[i]);
+  }
+
+  return new Uint8Array(buf);
+}
+
+function unpackStateBinary(bytes) {
+  const cursor = { pos: 0 };
+  const flags = bytes[cursor.pos++];
+  const sp = V3_SPLATS[flags & 0x07] || 'mortal';
+  const isTenDotMode = Boolean((flags >> 3) & 1);
+  const hasCustomCounts = Boolean((flags >> 4) & 1);
+
+  const counts = hasCustomCounts
+    ? Array.from({ length: 9 }, () => readVarint(bytes, cursor))
+    : [
+        DEFAULT_MF_ROWS, DEFAULT_MF_ROWS, DEFAULT_COMBAT_ROWS,
+        getDefaultAdvRowCount(sp, 0), getDefaultAdvRowCount(sp, 1), getDefaultAdvRowCount(sp, 2),
+        0, 0, 0
+      ];
+
+  setMeritFlawRowCount(sp, 'merit', counts[0]);
+  setMeritFlawRowCount(sp, 'flaw', counts[1]);
+  setCombatRowCount(sp, counts[2]);
+  setDynRowCount(sp, 'adv_0', counts[3]);
+  setDynRowCount(sp, 'adv_1', counts[4]);
+  setDynRowCount(sp, 'adv_2', counts[5]);
+  setCustomAbiRowCount(sp, 0, counts[6]);
+  setCustomAbiRowCount(sp, 1, counts[7]);
+  setCustomAbiRowCount(sp, 2, counts[8]);
+
+  const container = document.getElementById('splat-' + sp);
+  const dotEls = container ? Array.from(container.querySelectorAll('.dots-container, .boxes-container')) : [];
+  const dotByteLen = readVarint(bytes, cursor);
+  const dotSlice = bytes.slice(cursor.pos, cursor.pos + dotByteLen);
+  cursor.pos += dotByteLen;
+
+  const dots = {};
+  dotEls.forEach((el, i) => {
+    const b = dotSlice[Math.floor(i / 2)] || 0;
+    dots[el.dataset.id] = i % 2 === 0 ? (b >> 4) : (b & 0x0f);
+  });
+
+  const healthEls = container ? Array.from(container.querySelectorAll('.health-box')) : [];
+  const healthByteLen = readVarint(bytes, cursor);
+  const healthSlice = bytes.slice(cursor.pos, cursor.pos + healthByteLen);
+  cursor.pos += healthByteLen;
+
+  const health = {};
+  healthEls.forEach((el, i) => {
+    const b = healthSlice[Math.floor(i / 4)] || 0;
+    const shift = 6 - (i % 4) * 2;
+    health[el.dataset.id] = HEALTH_STATES[(b >> shift) & 0x03] || 'empty';
+  });
+
+  const inputEls = container ? Array.from(container.querySelectorAll('input[type=text], textarea')) : [];
+  const count = readVarint(bytes, cursor);
+  const indices = [];
+  let prevIdx = 0;
+  for (let i = 0; i < count; i++) {
+    prevIdx += readVarint(bytes, cursor);
+    indices.push(prevIdx);
+  }
+  const lengths = Array.from({ length: count }, () => readVarint(bytes, cursor));
+
+  const inputs = {};
+  inputEls.forEach(el => { if (el.id) inputs[el.id] = ''; });
+  for (let i = 0; i < count; i++) {
+    const strBytes = bytes.slice(cursor.pos, cursor.pos + lengths[i]);
+    cursor.pos += lengths[i];
+    const targetEl = inputEls[indices[i]];
+    if (targetEl && targetEl.id) {
+      inputs[targetEl.id] = dictDecodeUtf8(strBytes);
+    }
+  }
+
+  return {
+    splat: sp,
+    isTenDotMode,
+    meritCount: counts[0],
+    flawCount: counts[1],
+    combatCount: counts[2],
+    dynCounts: { adv_0: counts[3], adv_1: counts[4], adv_2: counts[5] },
+    customAbiCounts: { cat_0: counts[6], cat_1: counts[7], cat_2: counts[8] },
+    inputs,
+    dots,
+    health
+  };
+}
+
+function getShareableStatePayload() {
+  const state = captureCurrentState();
+  let warning = '';
+  if (state.inputs && state.inputs[currentSplat + '_portrait_url'] && state.inputs[currentSplat + '_portrait_url'].startsWith('data:image')) {
+    delete state.inputs[currentSplat + '_portrait_url'];
+    warning = ' (Local portrait excluded to keep link small)';
+  }
+  return { state, jsonStr: JSON.stringify(state), warning };
+}
+
+function applyShareHashToPage(finalHash, jsonStr) {
+  const shareUrl = getShareBaseUrl() + finalHash;
+  try {
+    window.history.replaceState(null, '', finalHash);
+  } catch (e) {}
+  const pdfLink = document.getElementById('pdfShareLink');
+  if (pdfLink) {
+    pdfLink.href = shareUrl;
+  }
+  lastSharedSnapshot = jsonStr;
+  return shareUrl;
+}
+
+function ensureSyncShareLinkForPrint() {
+  try {
+    const { state, jsonStr } = getShareableStatePayload();
+    if (lastSharedSnapshot === jsonStr && document.getElementById('pdfShareLink')?.getAttribute('href')?.includes('#')) {
+      return;
+    }
+    const fallbackHash = '#v3u~' + bytesToBase79(packStateBinary(state));
+    applyShareHashToPage(fallbackHash, jsonStr);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function generateShareUrl({ copyToClipboard = true, showNotification = true } = {}) {
+  const { state, jsonStr, warning } = getShareableStatePayload();
+  try {
+    let finalHash = '';
+    const packedBytes = packStateBinary(state);
+    if (typeof CompressionStream !== 'undefined') {
+      const stream = new Blob([packedBytes]).stream();
+      const compStream = stream.pipeThrough(new CompressionStream('deflate-raw'));
+      const buffer = await new Response(compStream).arrayBuffer();
+      const compBytes = new Uint8Array(buffer);
+      finalHash = compBytes.length < packedBytes.length
+        ? '#v3~' + bytesToBase79(compBytes)
+        : '#v3u~' + bytesToBase79(packedBytes);
+    } else {
+      finalHash = '#v3u~' + bytesToBase79(packedBytes);
+    }
+    const shareUrl = applyShareHashToPage(finalHash, jsonStr);
+    if (copyToClipboard && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareUrl)
+        .then(() => { if (showNotification) showToast('Link Copied!' + warning); })
+        .catch(() => { if (showNotification) showToast('Link generated in address bar.' + warning); });
+    } else if (showNotification) {
+      showToast('Link generated in address bar.' + warning);
+    }
+    return { shareUrl, hash: finalHash };
+  } catch (e) {
+    console.error(e);
+    if (showNotification) showToast('Error generating link.');
+    return null;
+  }
+}
+
+async function checkUrlForCharacter() {
+  const hash = window.location.hash;
+  if (!hash) return false;
+  try {
+    let state = null;
+    if (hash.startsWith('#v3~')) {
+      const compBytes = base79ToBytes(hash.substring(4));
+      const stream = new Blob([compBytes]).stream();
+      const decomp = stream.pipeThrough(new DecompressionStream('deflate-raw'));
+      const rawBytes = new Uint8Array(await new Response(decomp).arrayBuffer());
+      state = unpackStateBinary(rawBytes);
+    } else if (hash.startsWith('#v3u~')) {
+      state = unpackStateBinary(base79ToBytes(hash.substring(5)));
+    } else if (hash.startsWith('#v2~')) {
+      let b64 = hash.substring(4).replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const stream = new Blob([bytes]).stream();
+      const decomp = stream.pipeThrough(new DecompressionStream('deflate-raw'));
+      state = JSON.parse(await new Response(decomp).text());
+    } else if (hash.startsWith('#v1~')) {
+      let b64 = hash.substring(4);
+      while (b64.length % 4) b64 += '=';
+      state = JSON.parse(decodeURIComponent(atob(b64)));
+    }
+    if (state) {
+      isRestoring = true;
+      restoreState(state);
+      isRestoring = false;
+      showToast('Loaded from URL!');
+      return true;
+    }
+  } catch (e) { console.error(e); showToast('Corrupted URL.'); }
+  return false;
+}
+
+function saveAsJson() {
+  const state = captureCurrentState();
+  const name = state.inputs[state.splat + '_char_name'] || 'character';
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function importJsonFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const state = JSON.parse(evt.target.result);
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = null;
+      document.getElementById('sampleCharSelect').value = '';
+      isRestoring = true;
+      clearSheet(true, state.splat || currentSplat);
+      restoreState(state);
+      switchSplat(state.splat || currentSplat);
+      isRestoring = false;
+      isSheetDirty = false;
+      saveNow();
+      showToast('Loaded JSON successfully');
+    } catch (err) {
+      showToast('Invalid JSON');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function loadFromJson(e) {
+  const file = e.target.files[0];
+  importJsonFile(file);
+  e.target.value = '';
+}
+
+function addDynRow(splat, kind) {
+  const tbody = document.getElementById(`${splat}_${kind}_tbody`);
+  if (!tbody) return null;
+  const idx = tbody.children.length;
+
+  const tr = document.createElement('div');
+  tr.className = 'trait-flex-row';
+
+  let html = `<input type="text" class="trait-name-input" id="${splat}_${kind}_${idx}_name">`;
+  html += `<div class="dots-container" data-id="${splat}_${kind}_${idx}_dots" data-val="0">`;
+  for (let i = 1; i <= 10; i++) {
+    html += `<span class="dot${i > 5 ? ' dot-scalable-10' : ''}" data-idx="${i}"></span>`;
+  }
+  html += `</div>`;
+  html += `<button type="button" class="btn-icon-remove removeDynRowBtn no-print" style="margin-left:4px;" title="Remove Row" aria-label="Remove Row">&times;</button>`;
+
+  tr.innerHTML = html;
+  tbody.appendChild(tr);
+
+  const container = tr.querySelector('.dots-container');
+  bindDotContainer(container);
+  return tr;
+}
+
+function reindexDynRows(tbody) {
+  const match = tbody.id.match(/^([a-z]+)_(adv_\d)_tbody$/);
+  if (!match) return;
+  const [, splat, kind] = match;
+  Array.from(tbody.children).forEach((row, rowIdx) => {
+    const inp = row.querySelector('input');
+    if (inp) inp.id = `${splat}_${kind}_${rowIdx}_name`;
+    const dots = row.querySelector('.dots-container');
+    if (dots) dots.dataset.id = `${splat}_${kind}_${rowIdx}_dots`;
+  });
+}
+
+function setDynRowCount(splat, kind, count) {
+  const tbody = document.getElementById(`${splat}_${kind}_tbody`);
+  if (!tbody) return;
+  while (tbody.children.length < count) { addDynRow(splat, kind); }
+  while (tbody.children.length > count) { tbody.lastElementChild.remove(); }
+  reindexDynRows(tbody);
+}
+
+function autoResizeTextareas(container = document) {
+  container.querySelectorAll('textarea.sheet-area').forEach(ta => {
+    ta.style.height = '';
+    if (ta.value && ta.value.trim().length > 0 && ta.scrollHeight > 0) {
+      ta.style.height = Math.max(44, ta.scrollHeight) + 'px';
+    }
+  });
+}
+
+function updateDocumentTitle() {
+  const nameInput = document.getElementById(currentSplat + '_char_name');
+  if (nameInput && nameInput.value.trim().length > 0) {
+    document.title = nameInput.value.trim();
+  } else {
+    document.title = "WoD 20th Character Sheet";
+  }
+}
+
+
+const SPLAT_GUIDES = {
+  mortal: `
+    <h4>Creation Process (Hunters Hunted II)</h4>
+    <ul>
+      <li><strong>Attributes:</strong> +6 / +4 / +3 priority dots<span class="guide-note">Starts with 1 dot each (9 / 7 / 6 category totals; 22 total)</span></li>
+      <li><strong>Abilities:</strong> 11 / 7 / 4 (max 3 before Freebies)</li>
+      <li><strong>Backgrounds:</strong> 5</li>
+      <li><strong>Virtues:</strong> 7 (start at 1 each)</li>
+      <li><strong>Freebie Points:</strong> 21</li>
+    </ul>
+    <h4>Key Traits</h4>
+    <ul>
+      <li><strong>Humanity:</strong> Conscience + Self-Control</li>
+      <li><strong>Willpower:</strong> Equal to Courage rating</li>
+      <li><strong>Numina / True Faith:</strong> Purchased with Freebie Points (with ST approval).</li>
+    </ul>
+    <h4>Freebie Point Costs (21 pts)</h4>
+    <table class="guide-cost-grid">
+      <thead><tr><th>Trait</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr><td>Attribute</td><td>5 / dot</td></tr>
+        <tr><td>Ability</td><td>2 / dot</td></tr>
+        <tr><td>Numina / True Faith</td><td>7 / dot</td></tr>
+        <tr><td>Background</td><td>1 / dot</td></tr>
+        <tr><td>Virtue</td><td>2 / dot</td></tr>
+        <tr><td>Humanity / Willpower</td><td>1 / dot</td></tr>
+        <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
+      </tbody>
+    </table>
+    <h4>Experience Costs (XP)</h4>
+    <table class="guide-cost-grid">
+      <thead><tr><th>Trait</th><th>XP Cost</th></tr></thead>
+      <tbody>
+        <tr><td>New Ability</td><td>3</td></tr>
+        <tr><td>Attribute</td><td>current &times; 4</td></tr>
+        <tr><td>Ability</td><td>current &times; 2</td></tr>
+        <tr><td>Numina Path</td><td>current &times; 7 (New: 7)</td></tr>
+        <tr><td>Virtue / Humanity</td><td>current &times; 2</td></tr>
+        <tr><td>Willpower</td><td>current</td></tr>
+      </tbody>
+    </table>
+    <h4>Specialties</h4>
+    <p>Attributes and Abilities rated 4+ gain a Specialty (re-roll 10s on related checks).</p>
+  `,
+  vampire: `
+    <h4>Creation Process (V20)</h4>
+    <ul>
+      <li><strong>Attributes:</strong> +7 / +5 / +3 priority dots<span class="guide-note">Starts with 1 dot each (10 / 8 / 6 category totals; 24 total)</span></li>
+      <li><strong>Abilities:</strong> 13 / 9 / 5 (max 3 before Freebies)</li>
+      <li><strong>Disciplines:</strong> 3</li>
+      <li><strong>Backgrounds:</strong> 5</li>
+      <li><strong>Virtues:</strong> 7 (start at 1 each)</li>
+      <li><strong>Freebie Points:</strong> 15</li>
+    </ul>
+    <h4>Key Traits</h4>
+    <ul>
+      <li><strong>Humanity / Path:</strong> Conscience + Self-Control</li>
+      <li><strong>Willpower:</strong> Equal to Courage rating</li>
+      <li><strong>Blood Pool:</strong> 13th Gen starts with Max 10, Spend 1/turn (adjusted by Generation Background).</li>
+    </ul>
+    <h4>Freebie Point Costs (15 pts)</h4>
+    <table class="guide-cost-grid">
+      <thead><tr><th>Trait</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr><td>Attribute</td><td>5 / dot</td></tr>
+        <tr><td>Ability</td><td>2 / dot</td></tr>
+        <tr><td>Discipline</td><td>7 / dot</td></tr>
+        <tr><td>Background</td><td>1 / dot</td></tr>
+        <tr><td>Virtue</td><td>2 / dot</td></tr>
+        <tr><td>Humanity / Path</td><td>2 / dot</td></tr>
+        <tr><td>Willpower</td><td>1 / dot</td></tr>
+        <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
+      </tbody>
+    </table>
+    <h4>Experience Costs (XP)</h4>
+    <table class="guide-cost-grid">
+      <thead><tr><th>Trait</th><th>XP Cost</th></tr></thead>
+      <tbody>
+        <tr><td>New Ability</td><td>3</td></tr>
+        <tr><td>New Discipline / Path</td><td>10 / 7</td></tr>
+        <tr><td>Attribute</td><td>current &times; 4</td></tr>
+        <tr><td>Ability</td><td>current &times; 2</td></tr>
+        <tr><td>Clan Discipline</td><td>current &times; 5</td></tr>
+        <tr><td>Other Discipline</td><td>current &times; 7</td></tr>
+        <tr><td>Secondary Path</td><td>current &times; 4</td></tr>
+        <tr><td>Virtue / Humanity / Path</td><td>current &times; 2</td></tr>
+        <tr><td>Willpower</td><td>current</td></tr>
+      </tbody>
+    </table>
+    <h4>Specialties</h4>
+    <p>Attributes and Abilities rated 4+ gain a Specialty.</p>
+  `,
+  werewolf: `
+    <h4>Creation Process (W20)</h4>
+    <ul>
+      <li><strong>Attributes:</strong> +7 / +5 / +3 priority dots<span class="guide-note">Starts with 1 dot each (10 / 8 / 6 category totals; 24 total)</span></li>
+      <li><strong>Abilities:</strong> 13 / 9 / 5 (max 3 before Freebies)</li>
+      <li><strong>Gifts:</strong> 3 (1 Breed, 1 Auspice, 1 Tribe)</li>
+      <li><strong>Backgrounds:</strong> 5</li>
+      <li><strong>Freebie Points:</strong> 15</li>
+    </ul>
+    <h4>Key Traits</h4>
+    <ul>
+      <li><strong>Rage:</strong> By Auspice (Ragabash 1 to Ahroun 5)</li>
+      <li><strong>Gnosis:</strong> By Breed (Homid 1, Metis 3, Lupus 5)</li>
+      <li><strong>Willpower &amp; Renown:</strong> Determined by Tribe &amp; Auspice.</li>
+    </ul>
+    <h4>Freebie Point Costs (15 pts)</h4>
+    <table class="guide-cost-grid">
+      <thead><tr><th>Trait</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr><td>Attribute</td><td>5 / dot</td></tr>
+        <tr><td>Ability</td><td>2 / dot</td></tr>
+        <tr><td>Gift (Level 1)</td><td>7 / Gift</td></tr>
+        <tr><td>Background</td><td>1 / dot</td></tr>
+        <tr><td>Rage</td><td>1 / dot</td></tr>
+        <tr><td>Gnosis</td><td>2 / dot</td></tr>
+        <tr><td>Willpower</td><td>1 / dot</td></tr>
+        <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
+      </tbody>
+    </table>
+    <h4>Experience Costs (XP)</h4>
+    <table class="guide-cost-grid">
+      <thead><tr><th>Trait</th><th>XP Cost</th></tr></thead>
+      <tbody>
+        <tr><td>New Ability</td><td>3</td></tr>
+        <tr><td>Attribute</td><td>current &times; 4</td></tr>
+        <tr><td>Ability</td><td>current &times; 2</td></tr>
+        <tr><td>In-Breed/Auspice/Tribe Gift</td><td>level &times; 3</td></tr>
+        <tr><td>Outside Gift</td><td>level &times; 5</td></tr>
+        <tr><td>Rage</td><td>current</td></tr>
+        <tr><td>Gnosis</td><td>current &times; 2</td></tr>
+        <tr><td>Willpower</td><td>current</td></tr>
+      </tbody>
+    </table>
+    <h4>Specialties</h4>
+    <p>Attributes and Abilities rated 4+ gain a Specialty.</p>
+  `,
+  mage: `
+    <h4>Creation Process (M20)</h4>
+    <ul>
+      <li><strong>Attributes:</strong> +7 / +5 / +3 priority dots<span class="guide-note">Starts with 1 dot each (10 / 8 / 6 category totals; 24 total)</span></li>
+      <li><strong>Abilities:</strong> 13 / 9 / 5 (max 3 before Freebies)</li>
+      <li><strong>Spheres:</strong> 6 (min 1 in Affinity Sphere)</li>
+      <li><strong>Backgrounds:</strong> 7</li>
+      <li><strong>Freebie Points:</strong> 15</li>
+    </ul>
+    <h4>Key Traits</h4>
+    <ul>
+      <li><strong>Arete:</strong> Starts at 1 (max 3 at creation; caps Spheres)</li>
+      <li><strong>Willpower:</strong> Starts at 5</li>
+      <li><strong>Quintessence:</strong> Starts equal to Avatar rating.</li>
+    </ul>
+    <h4>Freebie Point Costs (15 pts)</h4>
+    <table class="guide-cost-grid">
+      <thead><tr><th>Trait</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr><td>Attribute</td><td>5 / dot</td></tr>
+        <tr><td>Ability</td><td>2 / dot</td></tr>
+        <tr><td>Sphere</td><td>7 / dot</td></tr>
+        <tr><td>Arete</td><td>4 / dot (max 3)</td></tr>
+        <tr><td>Background</td><td>1 / dot</td></tr>
+        <tr><td>Willpower</td><td>1 / dot</td></tr>
+        <tr><td>Quintessence</td><td>1 / 4 pts</td></tr>
+        <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
+      </tbody>
+    </table>
+    <h4>Experience Costs (XP)</h4>
+    <table class="guide-cost-grid">
+      <thead><tr><th>Trait</th><th>XP Cost</th></tr></thead>
+      <tbody>
+        <tr><td>New Ability</td><td>3</td></tr>
+        <tr><td>New Sphere</td><td>10</td></tr>
+        <tr><td>Attribute</td><td>current &times; 4</td></tr>
+        <tr><td>Ability</td><td>current &times; 2</td></tr>
+        <tr><td>Affinity Sphere</td><td>current &times; 7</td></tr>
+        <tr><td>Other Sphere</td><td>current &times; 8</td></tr>
+        <tr><td>Arete</td><td>current &times; 8</td></tr>
+        <tr><td>Background (ST approval)</td><td>current &times; 3</td></tr>
+        <tr><td>Willpower</td><td>current</td></tr>
+      </tbody>
+    </table>
+    <h4>Specialties</h4>
+    <p>Attributes, Abilities, and Spheres rated 4+ gain a Specialty.</p>
+  `,
+  changeling: `
+    <h4>Creation Process (C20)</h4>
+    <ul>
+      <li><strong>Attributes:</strong> +7 / +5 / +3 priority dots<span class="guide-note">Starts with 1 dot each (10 / 8 / 6 category totals; 24 total)</span></li>
+      <li><strong>Abilities:</strong> 13 / 9 / 5 (max 3 before Freebies)</li>
+      <li><strong>Arts:</strong> 3</li>
+      <li><strong>Realms:</strong> 5</li>
+      <li><strong>Backgrounds:</strong> 5</li>
+      <li><strong>Freebie Points:</strong> 15</li>
+    </ul>
+    <h4>Key Traits</h4>
+    <ul>
+      <li><strong>Base Pools:</strong> Glamour 4, Willpower 4, Banality 3 (modified by Seeming)</li>
+      <li><strong>Health:</strong> Chimerical damage knocks unconscious; Real damage can kill.</li>
+    </ul>
+    <h4>Freebie Point Costs (15 pts)</h4>
+    <table class="guide-cost-grid">
+      <thead><tr><th>Trait</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr><td>Attribute</td><td>5 / dot</td></tr>
+        <tr><td>Ability</td><td>2 / dot</td></tr>
+        <tr><td>Art</td><td>5 / dot</td></tr>
+        <tr><td>Realm</td><td>2 / dot</td></tr>
+        <tr><td>Background</td><td>1 / dot</td></tr>
+        <tr><td>Glamour</td><td>3 / dot</td></tr>
+        <tr><td>Willpower</td><td>1 / dot</td></tr>
+        <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
+      </tbody>
+    </table>
+    <h4>Experience Costs (XP)</h4>
+    <table class="guide-cost-grid">
+      <thead><tr><th>Trait</th><th>XP Cost</th></tr></thead>
+      <tbody>
+        <tr><td>New Ability</td><td>3</td></tr>
+        <tr><td>New Art / New Realm</td><td>7 / 5</td></tr>
+        <tr><td>Attribute</td><td>current &times; 4</td></tr>
+        <tr><td>Ability</td><td>current &times; 2</td></tr>
+        <tr><td>Art</td><td>current &times; 4</td></tr>
+        <tr><td>Realm</td><td>current &times; 3</td></tr>
+        <tr><td>Glamour</td><td>current &times; 3</td></tr>
+        <tr><td>Willpower</td><td>current &times; 2</td></tr>
+      </tbody>
+    </table>
+    <h4>Specialties</h4>
+    <p>Attributes and Abilities rated 4+ gain a Specialty.</p>
+  `,
+  wraith: `
+    <h4>Creation Process (Wr20)</h4>
+    <ul>
+      <li><strong>Attributes:</strong> +7 / +5 / +3 priority dots<span class="guide-note">Starts with 1 dot each (10 / 8 / 6 category totals; 24 total)</span></li>
+      <li><strong>Abilities:</strong> 13 / 9 / 5 (max 3 before Freebies)</li>
+      <li><strong>Arcanoi:</strong> 5 (min 1 in Guild Arcanos)</li>
+      <li><strong>Backgrounds:</strong> 7</li>
+      <li><strong>Passions / Fetters:</strong> 10 / 10 (max 5 each)</li>
+      <li><strong>Freebie Points:</strong> 15</li>
+    </ul>
+    <h4>Key Traits</h4>
+    <ul>
+      <li><strong>Corpus:</strong> 10 (Permanent)</li>
+      <li><strong>Willpower:</strong> Starts at 5</li>
+      <li><strong>Pathos:</strong> Starts at 5 + Memoriam rating.</li>
+    </ul>
+    <h4>Freebie Point Costs (15 pts)</h4>
+    <table class="guide-cost-grid">
+      <thead><tr><th>Trait</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr><td>Attribute</td><td>5 / dot</td></tr>
+        <tr><td>Ability</td><td>2 / dot</td></tr>
+        <tr><td>Arcanos</td><td>5 / dot</td></tr>
+        <tr><td>Background</td><td>1 / dot</td></tr>
+        <tr><td>Passion</td><td>2 / dot</td></tr>
+        <tr><td>Fetter / Pathos / Willpower</td><td>1 / dot</td></tr>
+        <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
+      </tbody>
+    </table>
+    <h4>Experience Costs (XP)</h4>
+    <table class="guide-cost-grid">
+      <thead><tr><th>Trait</th><th>XP Cost</th></tr></thead>
+      <tbody>
+        <tr><td>New Ability</td><td>3</td></tr>
+        <tr><td>New Arcanos (Guild)</td><td>7 (5)</td></tr>
+        <tr><td>New Passion / Fetter</td><td>3</td></tr>
+        <tr><td>Attribute</td><td>current &times; 4</td></tr>
+        <tr><td>Ability</td><td>current &times; 2</td></tr>
+        <tr><td>Arcanos (Guild)</td><td>current &times; 3 (&times; 2)</td></tr>
+        <tr><td>Passion / Fetter</td><td>current &times; 3</td></tr>
+        <tr><td>Pathos</td><td>current &times; 2</td></tr>
+        <tr><td>Willpower</td><td>current</td></tr>
+      </tbody>
+    </table>
+    <h4>Specialties</h4>
+    <p>Attributes and Abilities rated 4+ gain a Specialty.</p>
+  `
+};
+
+function getDotVal(container, id) {
+  const el = container.querySelector(`[data-id="${id}"]`);
+  return el ? parseInt(el.dataset.val || '0', 10) : 0;
+}
+
+function sumDotsByPrefix(container, prefixes) {
+  let total = 0;
+  container.querySelectorAll('.dots-container').forEach(el => {
+    const id = el.dataset.id || '';
+    if (prefixes.some(p => id.startsWith(p))) {
+      total += parseInt(el.dataset.val || '0', 10);
+    }
+  });
+  return total;
+}
+
+function updateGuideTally() {
+  const tallyEl = document.getElementById('guideTally');
+  const active = document.getElementById('splat-' + currentSplat);
+  if (!tallyEl || !active) return;
+
+  const phys = ['str', 'dex', 'sta'].reduce((s, k) => s + getDotVal(active, `${currentSplat}_attr_${k}`), 0);
+  const soc = ['cha', 'man', 'app'].reduce((s, k) => s + getDotVal(active, `${currentSplat}_attr_${k}`), 0);
+  const ment = ['per', 'int', 'wit'].reduce((s, k) => s + getDotVal(active, `${currentSplat}_attr_${k}`), 0);
+  const attrTotal = phys + soc + ment;
+  const pSpent = phys - 3;
+  const sSpent = soc - 3;
+  const mSpent = ment - 3;
+  const fmtSpent = (n) => (n >= 0 ? `+${n}` : `${n}`);
+  const expectedAttrTotal = currentSplat === 'mortal' ? 22 : 24;
+
+  const tal = sumDotsByPrefix(active, [`${currentSplat}_abi_0_`, `${currentSplat}_custom_abi_0_`]);
+  const ski = sumDotsByPrefix(active, [`${currentSplat}_abi_1_`, `${currentSplat}_custom_abi_1_`]);
+  const kno = sumDotsByPrefix(active, [`${currentSplat}_abi_2_`, `${currentSplat}_custom_abi_2_`]);
+  const abiTotal = tal + ski + kno;
+
+  let advSummary = '';
+  if (currentSplat === 'mortal') {
+    const numina = sumDotsByPrefix(active, ['mortal_adv_0_']);
+    const bgs = sumDotsByPrefix(active, ['mortal_adv_1_']);
+    const virt = sumDotsByPrefix(active, ['mortal_adv_2_']);
+    advSummary = `Numina ${numina} · BGs ${bgs} · Virtues ${virt}`;
+  } else if (currentSplat === 'vampire') {
+    const disc = sumDotsByPrefix(active, ['vampire_adv_0_']);
+    const bgs = sumDotsByPrefix(active, ['vampire_adv_1_']);
+    const virt = sumDotsByPrefix(active, ['vampire_adv_2_']);
+    advSummary = `Disc ${disc} · BGs ${bgs} · Virtues ${virt}`;
+  } else if (currentSplat === 'werewolf') {
+    const bgs = sumDotsByPrefix(active, ['werewolf_adv_0_']);
+    const gifts = sumDotsByPrefix(active, ['werewolf_adv_1_', 'werewolf_adv_2_']);
+    const renown = ['glory', 'honor', 'wisdom'].reduce((s, k) => s + getDotVal(active, `werewolf_${k}_dots`), 0);
+    advSummary = `BGs ${bgs} · Gifts ${gifts} · Renown ${renown}`;
+  } else if (currentSplat === 'mage') {
+    const spheres = sumDotsByPrefix(active, ['mage_adv_0_']);
+    const bgs = sumDotsByPrefix(active, ['mage_adv_1_']);
+    const other = sumDotsByPrefix(active, ['mage_adv_2_']);
+    advSummary = `Spheres ${spheres} · BGs ${bgs} · Other ${other}`;
+  } else if (currentSplat === 'changeling') {
+    const bgs = sumDotsByPrefix(active, ['changeling_adv_0_']);
+    const arts = sumDotsByPrefix(active, ['changeling_adv_1_']);
+    const realms = sumDotsByPrefix(active, ['changeling_adv_2_']);
+    advSummary = `BGs ${bgs} · Arts ${arts} · Realms ${realms}`;
+  } else if (currentSplat === 'wraith') {
+    const bgs = sumDotsByPrefix(active, ['wraith_adv_0_']);
+    const arcanoi = sumDotsByPrefix(active, ['wraith_adv_1_']);
+    const pf = sumDotsByPrefix(active, ['wraith_adv_2_']);
+    advSummary = `BGs ${bgs} · Arcanoi ${arcanoi} · P&F ${pf}`;
+  }
+
+  tallyEl.innerHTML = `
+    <div class="guide-tally-title">Current Sheet Dot Tally</div>
+    <div class="guide-tally-row">
+      <span class="guide-tally-label">Attributes:</span>
+      <span class="guide-tally-val">${fmtSpent(pSpent)} / ${fmtSpent(sSpent)} / ${fmtSpent(mSpent)} <span class="guide-tally-total">(${attrTotal}/${expectedAttrTotal})</span></span>
+    </div>
+    <div class="guide-tally-row">
+      <span class="guide-tally-label">Abilities:</span>
+      <span class="guide-tally-val">T ${tal} / S ${ski} / K ${kno} <span class="guide-tally-total">(${abiTotal})</span></span>
+    </div>
+    <div class="guide-tally-row">
+      <span class="guide-tally-label">Advantages:</span>
+      <span class="guide-tally-val">${advSummary}</span>
+    </div>
+  `;
+}
+
+function updateGuidePanel() {
+  const content = document.getElementById('guideContent');
+  const title = document.getElementById('guideTitle');
+  if (content && SPLAT_GUIDES[currentSplat]) {
+    content.innerHTML = SPLAT_GUIDES[currentSplat];
+    const splatNames = { mortal: 'Mortal', vampire: 'Vampire', werewolf: 'Werewolf', mage: 'Mage', changeling: 'Changeling', wraith: 'Wraith' };
+    title.textContent = `${splatNames[currentSplat]} Creation Guide`;
+  }
+  updateGuideTally();
+}
+
+function toggleGuide() {
+  const panel = document.getElementById('guidePanel');
+  if (panel) {
+    const opening = !panel.classList.contains('open');
+    panel.classList.toggle('open', opening);
+    if (opening) updateGuideTally();
+  }
+}
+
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.protocol === 'http:')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+}
+
+function bindGuide() {
+  document.getElementById('toggleGuideBtn').addEventListener('click', toggleGuide);
+  document.getElementById('closeGuideBtn').addEventListener('click', toggleGuide);
+}
+  </script>
 </body>
 </html>

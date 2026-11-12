@@ -1,13 +1,13 @@
-const CACHE_NAME = 'wod20-sheet-cache-v11';
+const CACHE_NAME = 'wod20-sheet-cache-v14';
 const CORE_ASSETS = [
   './',
-  './index.html',
+  './index.html'
+];
+const OPTIONAL_ASSETS = [
   './manifest.json',
   './assets/css/style.css',
   './assets/js/app.js',
-  './assets/js/sampleCharacters.js'
-];
-const OPTIONAL_ASSETS = [
+  './assets/js/sampleCharacters.js',
   './assets/img/dark_pack_logo.png'
 ];
 
