@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindControls();
   bindDragAndDrop();
   bindGuide();
+  bindDiceRoller();
   updateGuidePanel();
   registerServiceWorker();
 
@@ -81,6 +82,13 @@ function bindControls() {
         guidePanel.classList.remove('open');
         const toggleBtn = document.getElementById('toggleGuideBtn');
         if (toggleBtn) toggleBtn.focus();
+        return;
+      }
+      const dicePanel = document.getElementById('dicePanel');
+      if (dicePanel && dicePanel.classList.contains('open')) {
+        dicePanel.classList.remove('open');
+        const toggleDiceBtn = document.getElementById('toggleDiceBtn');
+        if (toggleDiceBtn) toggleDiceBtn.focus();
       }
     }
   });
@@ -525,6 +533,7 @@ function bindDotContainer(container) {
       container.dataset.val = next;
       updateVisual(container, next, childClass);
       if (!isSquare) updateGuideTally();
+      if (typeof refreshSelectedDiceTraits === 'function') refreshSelectedDiceTraits();
       isSheetDirty = true;
       scheduleAutoSave();
     };
@@ -596,6 +605,7 @@ function addCustomAbiRow(splat, catIdx) {
     html += `<span class="dot${i > 5 ? ' dot-scalable-10' : ''}" data-idx="${i}"></span>`;
   }
   html += `</div>`;
+  html += `<button type="button" class="roll-trait-mini-btn no-print" title="Roll Trait" aria-label="Roll Trait">d10</button>`;
   html += `<button type="button" class="btn-icon-remove removeCustomAbiBtn no-print" style="margin-left:4px;" title="Remove Ability" aria-label="Remove Ability">&times;</button>`;
 
   tr.innerHTML = html;
@@ -726,6 +736,7 @@ function switchSplat(splat) {
   if (active) {
     active.style.display = 'block';
     updateWoundPenalty(splat);
+    if (typeof clearDiceSelection === 'function') clearDiceSelection();
     updateActiveQuickNav();
     updateGuidePanel();
     requestAnimationFrame(() => autoResizeTextareas(active));
@@ -805,6 +816,7 @@ function updateWoundPenalty(splat = currentSplat) {
     badge.textContent = info.label;
     if (info.cls) badge.classList.add(info.cls);
   }
+  if (typeof syncDiceWoundPenalty === 'function') syncDiceWoundPenalty();
 }
 
 function initHealthBoxes() {
@@ -1597,6 +1609,7 @@ function addDynRow(splat, kind) {
     html += `<span class="dot${i > 5 ? ' dot-scalable-10' : ''}" data-idx="${i}"></span>`;
   }
   html += `</div>`;
+  html += `<button type="button" class="roll-trait-mini-btn no-print" title="Roll Trait" aria-label="Roll Trait">d10</button>`;
   html += `<button type="button" class="btn-icon-remove removeDynRowBtn no-print" style="margin-left:4px;" title="Remove Row" aria-label="Remove Row">&times;</button>`;
 
   tr.innerHTML = html;
@@ -2025,12 +2038,476 @@ function updateGuidePanel() {
 
 function toggleGuide() {
   const panel = document.getElementById('guidePanel');
+  const dicePanel = document.getElementById('dicePanel');
   if (panel) {
     const opening = !panel.classList.contains('open');
+    if (opening && dicePanel) dicePanel.classList.remove('open');
     panel.classList.toggle('open', opening);
     if (opening) updateGuideTally();
   }
 }
+
+let selectedDiceTraits = [];
+let diceRollHistory = [];
+let lastRollClipboardText = '';
+
+function toggleDicePanel(forceOpen) {
+  const panel = document.getElementById('dicePanel');
+  const guidePanel = document.getElementById('guidePanel');
+  if (!panel) return;
+  const opening = typeof forceOpen === 'boolean' ? forceOpen : !panel.classList.contains('open');
+  if (opening && guidePanel) guidePanel.classList.remove('open');
+  panel.classList.toggle('open', opening);
+  if (opening) syncDiceWoundPenalty();
+}
+
+function getActiveWoundPenalty(splat = currentSplat) {
+  const map = [
+    { penalty: 0, label: 'Healthy (0)', incapacitated: false },
+    { penalty: -1, label: 'Hurt (-1)', incapacitated: false },
+    { penalty: -1, label: 'Injured (-1)', incapacitated: false },
+    { penalty: -2, label: 'Wounded (-2)', incapacitated: false },
+    { penalty: -2, label: 'Mauled (-2)', incapacitated: false },
+    { penalty: -5, label: 'Crippled (-5)', incapacitated: false },
+    { penalty: -99, label: 'Incapacitated', incapacitated: true }
+  ];
+  if (splat === 'changeling') {
+    const r = getTrackPenaltyIndex('changeling', 'changeling_hlth_real');
+    const c = getTrackPenaltyIndex('changeling', 'changeling_hlth_chim');
+    return map[Math.max(r, c)] || map[0];
+  }
+  return map[getTrackPenaltyIndex(splat, `${splat}_hlth`)] || map[0];
+}
+
+function updateEffectivePoolNote() {
+  const poolInput = document.getElementById('dicePoolInput');
+  const noteEl = document.getElementById('diceEffectiveNote');
+  const woundToggle = document.getElementById('diceWoundToggle');
+  if (!poolInput || !noteEl) return;
+
+  const base = Math.max(0, parseInt(poolInput.value, 10) || 0);
+  const wound = getActiveWoundPenalty(currentSplat);
+  const applyWound = woundToggle && woundToggle.checked && wound.penalty < 0;
+
+  if (applyWound && wound.incapacitated) {
+    noteEl.textContent = 'Incapacitated (0 dice)';
+    noteEl.style.color = '#ff7b7b';
+    return;
+  }
+  const effective = Math.max(0, base + (applyWound ? wound.penalty : 0));
+  if (applyWound && wound.penalty < 0) {
+    noteEl.textContent = `Rolling ${effective}d10 (${base} ${wound.penalty} wound)`;
+    noteEl.style.color = '#f5c96b';
+  } else {
+    noteEl.textContent = `Rolling ${effective}d10`;
+    noteEl.style.color = '#9e9e9e';
+  }
+}
+
+function syncDiceWoundPenalty() {
+  const woundRow = document.getElementById('diceWoundRow');
+  const woundLabel = document.getElementById('diceWoundLabel');
+  if (!woundRow || !woundLabel) return;
+
+  const wound = getActiveWoundPenalty(currentSplat);
+  if (wound.penalty < 0) {
+    woundRow.style.display = 'flex';
+    woundLabel.innerHTML = wound.incapacitated
+      ? `Apply Wound Status <strong style="color:#ff7b7b;">(Incapacitated)</strong>`
+      : `Apply Wound Penalty <strong>(${wound.penalty})</strong>`;
+  } else {
+    woundRow.style.display = 'none';
+  }
+  updateEffectivePoolNote();
+}
+
+function clearDiceSelection() {
+  selectedDiceTraits = [];
+  document.querySelectorAll('.trait-selected-roll').forEach(el => el.classList.remove('trait-selected-roll'));
+  const lbl = document.getElementById('diceSelectedLabel');
+  const clr = document.getElementById('clearDiceTraitsBtn');
+  if (lbl) lbl.innerHTML = '<span class="dice-trait-hint">Click any trait on sheet to build pool</span>';
+  if (clr) clr.style.display = 'none';
+}
+
+function refreshSelectedDiceTraits() {
+  if (!selectedDiceTraits.length) {
+    updateEffectivePoolNote();
+    return;
+  }
+  const active = document.getElementById('splat-' + currentSplat);
+  if (!active) return;
+
+  let total = 0;
+  let hasSpec = false;
+  selectedDiceTraits = selectedDiceTraits.map(t => {
+    const dotsEl = active.querySelector(`[data-id="${t.id}"]`);
+    const val = dotsEl ? parseInt(dotsEl.dataset.val || '0', 10) : t.val;
+    let name = t.name;
+    if (t.nameInputId) {
+      const nameInp = document.getElementById(t.nameInputId);
+      if (nameInp && nameInp.value.trim()) name = nameInp.value.trim();
+    }
+    let spec = '';
+    if (t.specInputId) {
+      const specInp = document.getElementById(t.specInputId);
+      if (specInp && specInp.value.trim()) spec = specInp.value.trim();
+    }
+    total += val;
+    if (spec) hasSpec = true;
+    return { ...t, name, val, spec };
+  });
+
+  const poolInput = document.getElementById('dicePoolInput');
+  if (poolInput) poolInput.value = total;
+
+  const specToggle = document.getElementById('diceSpecialtyToggle');
+  if (specToggle) specToggle.checked = hasSpec;
+
+  const lbl = document.getElementById('diceSelectedLabel');
+  const clr = document.getElementById('clearDiceTraitsBtn');
+  if (lbl) {
+    lbl.innerHTML = selectedDiceTraits
+      .map(t => `<strong>${escapeHtmlForDice(t.name)}</strong> (${t.val}${t.spec ? `, <em>${escapeHtmlForDice(t.spec)}</em>` : ''})`)
+      .join(' + ');
+  }
+  if (clr) clr.style.display = 'inline-block';
+  updateEffectivePoolNote();
+}
+
+function selectTraitForDice(traitObj) {
+  document.querySelectorAll('.trait-selected-roll').forEach(el => el.classList.remove('trait-selected-roll'));
+
+  const existingIdx = selectedDiceTraits.findIndex(t => t.id === traitObj.id);
+  if (existingIdx !== -1) {
+    selectedDiceTraits.splice(existingIdx, 1);
+    if (selectedDiceTraits.length === 0) {
+      clearDiceSelection();
+      updateEffectivePoolNote();
+      return;
+    }
+  } else if (traitObj.isSinglePool || selectedDiceTraits.some(t => t.isSinglePool) || selectedDiceTraits.length >= 2) {
+    selectedDiceTraits = [traitObj];
+  } else {
+    selectedDiceTraits.push(traitObj);
+  }
+
+  selectedDiceTraits.forEach(t => {
+    if (t.rowEl) t.rowEl.classList.add('trait-selected-roll');
+  });
+
+  const woundToggle = document.getElementById('diceWoundToggle');
+  if (woundToggle) {
+    const anyReflexive = selectedDiceTraits.some(t => t.isReflexive);
+    woundToggle.checked = !anyReflexive;
+  }
+
+  toggleDicePanel(true);
+  refreshSelectedDiceTraits();
+}
+
+function escapeHtmlForDice(str) {
+  return String(str).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+function rollSingleD10() {
+  if (window.crypto && window.crypto.getRandomValues) {
+    const arr = new Uint32Array(1);
+    window.crypto.getRandomValues(arr);
+    return (arr[0] % 10) + 1;
+  }
+  return Math.floor(Math.random() * 10) + 1;
+}
+
+function executeWodRoll() {
+  const basePool = Math.max(0, Math.min(50, parseInt(document.getElementById('dicePoolInput').value, 10) || 0));
+  const difficulty = Math.max(2, Math.min(10, parseInt(document.getElementById('diceDiffInput').value, 10) || 6));
+  const specialty = document.getElementById('diceSpecialtyToggle').checked;
+  const spendWp = document.getElementById('diceWillpowerToggle').checked;
+  const woundToggle = document.getElementById('diceWoundToggle');
+  const wound = getActiveWoundPenalty(currentSplat);
+  const applyWound = woundToggle && woundToggle.checked && wound.penalty < 0;
+
+  const effectivePool = (applyWound && wound.incapacitated)
+    ? 0
+    : Math.max(0, basePool + (applyWound ? wound.penalty : 0));
+
+  const dice = [];
+  for (let i = 0; i < effectivePool; i++) {
+    const val = rollSingleD10();
+    dice.push({ val, isBonus: false });
+    if (specialty && val === 10) {
+      let cur = val;
+      let chainGuard = 0;
+      while (cur === 10 && chainGuard < 20) {
+        cur = rollSingleD10();
+        dice.push({ val: cur, isBonus: true });
+        chainGuard++;
+      }
+    }
+  }
+
+  let rawSuccesses = 0;
+  let ones = 0;
+  dice.forEach(d => {
+    if (d.val >= difficulty) rawSuccesses++;
+    if (d.val === 1) ones++;
+  });
+
+  const isBotch = effectivePool > 0 && rawSuccesses === 0 && ones > 0 && !spendWp;
+  const rolledNet = rawSuccesses - ones;
+  const netSuccesses = spendWp ? Math.max(0, rolledNet) + 1 : rolledNet;
+
+  let outcomeLabel = '';
+  let outcomeClass = 'outcome-fail';
+  if (isBotch) {
+    outcomeLabel = `BOTCH! (${ones} ${ones === 1 ? 'One' : 'Ones'})`;
+    outcomeClass = 'outcome-botch';
+  } else if (netSuccesses <= 0) {
+    outcomeLabel = `Failure (${Math.max(0, netSuccesses)} Net Successes)`;
+    outcomeClass = 'outcome-fail';
+  } else {
+    const tiers = ['', 'Marginal', 'Moderate', 'Complete', 'Exceptional', 'Phenomenal'];
+    const tier = netSuccesses >= 5 ? 'Phenomenal' : tiers[netSuccesses];
+    outcomeLabel = `${netSuccesses} ${netSuccesses === 1 ? 'Success' : 'Successes'} — ${tier}`;
+    outcomeClass = netSuccesses >= 4 ? 'outcome-phenomenal' : 'outcome-success';
+  }
+
+  const resultBox = document.getElementById('diceResultBox');
+  const outcomeEl = document.getElementById('diceOutcomeText');
+  const trayEl = document.getElementById('diceTray');
+  resultBox.style.display = 'block';
+  outcomeEl.textContent = outcomeLabel;
+  outcomeEl.className = 'dice-outcome ' + outcomeClass;
+
+  trayEl.innerHTML = dice.length
+    ? dice.map(d => {
+        let cls = 'die-miss';
+        if (d.val === 10) cls = 'die-ten';
+        else if (d.val >= difficulty) cls = 'die-success';
+        else if (d.val === 1) cls = 'die-one';
+        return `<span class="die-badge ${cls}">${d.val}${d.isBonus ? '<span class="die-bonus-tag">+</span>' : ''}</span>`;
+      }).join('')
+    : '<span style="font-size:11px; color:#888;">No dice rolled (0 effective pool)</span>';
+
+  const charName = (document.getElementById(currentSplat + '_char_name')?.value || '').trim();
+  const traitDesc = selectedDiceTraits.length
+    ? selectedDiceTraits.map(t => t.name).join(' + ')
+    : 'Custom Pool';
+  const mods = [];
+  if (specialty) mods.push('Specialty');
+  if (spendWp) mods.push('Willpower +1');
+  if (applyWound && wound.penalty < 0) mods.push(wound.incapacitated ? 'Incapacitated' : `Wound ${wound.penalty}`);
+
+  const diceStr = dice.map(d => (d.isBonus ? `+${d.val}` : `${d.val}`)).join(', ');
+  const prefix = charName ? `${charName} — ` : '';
+  const modStr = mods.length ? `, ${mods.join(', ')}` : '';
+  const summary = `${prefix}${traitDesc} (${effectivePool}d10, Diff ${difficulty}${modStr}): [${diceStr}] → ${outcomeLabel}`;
+
+  lastRollClipboardText = summary;
+  diceRollHistory.unshift({ traitDesc, outcomeLabel, outcomeClass, summary });
+  if (diceRollHistory.length > 8) diceRollHistory.pop();
+  renderRollHistory();
+}
+
+function renderRollHistory() {
+  const wrap = document.getElementById('diceHistoryWrap');
+  const list = document.getElementById('diceHistoryList');
+  if (!wrap || !list) return;
+  if (!diceRollHistory.length) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'block';
+  list.innerHTML = diceRollHistory.map((item, idx) => `
+    <div class="dice-history-item">
+      <span class="dice-history-text" title="${escapeHtmlForDice(item.summary)}">
+        <strong>${escapeHtmlForDice(item.traitDesc)}:</strong> <span class="${item.outcomeClass}">${escapeHtmlForDice(item.outcomeLabel)}</span>
+      </span>
+      <button type="button" class="btn btn-sm copy-hist-btn" data-idx="${idx}" style="padding:1px 6px; font-size:10px;">Copy</button>
+    </div>
+  `).join('');
+}
+
+function spendOneWillpowerBox() {
+  const active = document.getElementById('splat-' + currentSplat);
+  if (!active) return;
+  const wpSq = active.querySelector(`[data-id="${currentSplat}_wp_sq"]`);
+  const wpDots = active.querySelector(`[data-id="${currentSplat}_wp_dots"]`);
+  if (!wpSq) return;
+
+  const cur = parseInt(wpSq.dataset.val || '0', 10);
+  const max = wpDots ? parseInt(wpDots.dataset.val || '0', 10) : 10;
+  if (cur <= 0) {
+    showToast('No temporary Willpower boxes left!');
+    return;
+  }
+  const next = cur - 1;
+  wpSq.dataset.val = next;
+  updateVisual(wpSq, next, 'square-box');
+  isSheetDirty = true;
+  scheduleAutoSave();
+  showToast(`Spent 1 Willpower (${next}${max ? '/' + max : ''} remaining)`);
+}
+
+function bindDiceRoller() {
+  const toggleBtn = document.getElementById('toggleDiceBtn');
+  const closeBtn = document.getElementById('closeDiceBtn');
+  if (toggleBtn) toggleBtn.addEventListener('click', () => toggleDicePanel());
+  if (closeBtn) closeBtn.addEventListener('click', () => toggleDicePanel(false));
+
+  const poolInput = document.getElementById('dicePoolInput');
+  const diffInput = document.getElementById('diceDiffInput');
+  const syncDiffPresets = () => {
+    const val = parseInt(diffInput.value, 10);
+    document.querySelectorAll('.diff-preset-btn').forEach(btn => {
+      btn.classList.toggle('active', parseInt(btn.dataset.diff, 10) === val);
+    });
+  };
+
+  document.getElementById('dicePoolMinus').addEventListener('click', () => {
+    poolInput.value = Math.max(0, (parseInt(poolInput.value, 10) || 0) - 1);
+    updateEffectivePoolNote();
+  });
+  document.getElementById('dicePoolPlus').addEventListener('click', () => {
+    poolInput.value = Math.min(50, (parseInt(poolInput.value, 10) || 0) + 1);
+    updateEffectivePoolNote();
+  });
+  poolInput.addEventListener('input', updateEffectivePoolNote);
+
+  document.getElementById('diceDiffMinus').addEventListener('click', () => {
+    diffInput.value = Math.max(2, (parseInt(diffInput.value, 10) || 6) - 1);
+    syncDiffPresets();
+  });
+  document.getElementById('diceDiffPlus').addEventListener('click', () => {
+    diffInput.value = Math.min(10, (parseInt(diffInput.value, 10) || 6) + 1);
+    syncDiffPresets();
+  });
+  diffInput.addEventListener('input', syncDiffPresets);
+
+  document.querySelectorAll('.diff-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      diffInput.value = btn.dataset.diff;
+      syncDiffPresets();
+    });
+  });
+
+  document.getElementById('diceWoundToggle').addEventListener('change', updateEffectivePoolNote);
+  document.getElementById('clearDiceTraitsBtn').addEventListener('click', () => {
+    clearDiceSelection();
+    updateEffectivePoolNote();
+  });
+  document.getElementById('spendWpBoxBtn').addEventListener('click', spendOneWillpowerBox);
+  document.getElementById('rollDiceBtn').addEventListener('click', executeWodRoll);
+
+  document.getElementById('copyLastRollBtn').addEventListener('click', () => {
+    if (lastRollClipboardText && navigator.clipboard) {
+      navigator.clipboard.writeText(lastRollClipboardText).then(() => showToast('Copied roll to clipboard!'));
+    }
+  });
+  document.getElementById('diceHistoryList').addEventListener('click', (e) => {
+    const btn = e.target.closest('.copy-hist-btn');
+    if (!btn) return;
+    const item = diceRollHistory[parseInt(btn.dataset.idx, 10)];
+    if (item && navigator.clipboard) {
+      navigator.clipboard.writeText(item.summary).then(() => showToast('Copied roll to clipboard!'));
+    }
+  });
+  document.getElementById('clearRollLogBtn').addEventListener('click', () => {
+    diceRollHistory = [];
+    renderRollHistory();
+  });
+
+  const reflexiveIds = ['_wp_dots', '_faith_dots', '_humanity_dots', '_path_dots', '_rage_dots', '_gnosis_dots', '_arete_dots', '_glamour_dots', '_banality_dots', '_corpus_dots', '_psyche_wp', '_angst'];
+  document.querySelectorAll('.pool-box').forEach(box => {
+    const dots = box.querySelector('.dots-container');
+    const title = box.querySelector('.pool-title');
+    if (dots && title) {
+      box.classList.add('rollable-pool');
+      title.title = 'Click to load pool into Dice Roller';
+    }
+  });
+
+  document.querySelectorAll('.trait-flex-row').forEach(row => {
+    const removeBtn = row.querySelector('.removeDynRowBtn, .removeCustomAbiBtn');
+    if (removeBtn && !row.querySelector('.roll-trait-mini-btn')) {
+      const rBtn = document.createElement('button');
+      rBtn.type = 'button';
+      rBtn.className = 'roll-trait-mini-btn no-print';
+      rBtn.title = 'Roll Trait';
+      rBtn.setAttribute('aria-label', 'Roll Trait');
+      rBtn.textContent = 'd10';
+      row.insertBefore(rBtn, removeBtn);
+    }
+  });
+
+  document.getElementById('sheetForm').addEventListener('click', (e) => {
+    const traitLbl = e.target.closest('.trait-row .trait-label');
+    if (traitLbl) {
+      const row = traitLbl.closest('.trait-row');
+      const dots = row ? row.querySelector('.dots-container') : null;
+      if (!dots) return;
+      const specInp = row.querySelector('.trait-spec-input');
+      const id = dots.dataset.id;
+      const isReflexive = id.includes('_adv_2_') && (id.includes('conscience') || id.includes('self-control') || id.includes('courage'));
+      const isSinglePool = id.includes('_glory_dots') || id.includes('_honor_dots') || id.includes('_wisdom_dots');
+      selectTraitForDice({
+        id,
+        name: traitLbl.textContent.trim(),
+        val: parseInt(dots.dataset.val || '0', 10),
+        spec: specInp ? specInp.value.trim() : '',
+        specInputId: specInp ? specInp.id : null,
+        isSinglePool,
+        isReflexive,
+        rowEl: row
+      });
+      return;
+    }
+
+    const poolTitle = e.target.closest('.pool-box.rollable-pool .pool-title');
+    if (poolTitle) {
+      const box = poolTitle.closest('.pool-box');
+      const dots = box.querySelector('.dots-container');
+      if (!dots) return;
+      const id = dots.dataset.id;
+      const pathInp = box.querySelector('input[type="text"]');
+      const labelName = (pathInp && pathInp.value.trim()) ? pathInp.value.trim() : poolTitle.textContent.trim();
+      selectTraitForDice({
+        id,
+        name: labelName,
+        nameInputId: pathInp ? pathInp.id : null,
+        val: parseInt(dots.dataset.val || '0', 10),
+        spec: '',
+        isSinglePool: true,
+        isReflexive: reflexiveIds.some(suffix => id.endsWith(suffix)),
+        rowEl: box
+      });
+      return;
+    }
+
+    const miniRollBtn = e.target.closest('.roll-trait-mini-btn');
+    if (miniRollBtn) {
+      const row = miniRollBtn.closest('.trait-flex-row');
+      const dots = row ? row.querySelector('.dots-container') : null;
+      if (!dots) return;
+      const nameInp = row.querySelector('input.trait-name-input');
+      const specInp = row.querySelector('input.trait-spec-input');
+      const fallbackName = dots.dataset.id.includes('_custom_abi_') ? 'Custom Ability' : 'Advantage';
+      selectTraitForDice({
+        id: dots.dataset.id,
+        name: (nameInp && nameInp.value.trim()) ? nameInp.value.trim() : fallbackName,
+        nameInputId: nameInp ? nameInp.id : null,
+        val: parseInt(dots.dataset.val || '0', 10),
+        spec: specInp ? specInp.value.trim() : '',
+        specInputId: specInp ? specInp.id : null,
+        isSinglePool: false,
+        isReflexive: false,
+        rowEl: row
+      });
+    }
+  });
+}
+
 
 function registerServiceWorker() {
   if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.protocol === 'http:')) {
