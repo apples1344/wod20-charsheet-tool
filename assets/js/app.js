@@ -946,7 +946,7 @@ function restoreState(state) {
     }
   } else {
     for (let i = 0; i <= 2; i++) {
-      const defRows = (state.splat === 'wraith' && i === 1) || (state.splat === 'mortal' && i === 0) ? 10 : 6;
+      const defRows = (state.splat === 'wraith' && i === 1) ? 10 : 6;
       setDynRowCount(state.splat, `adv_${i}`, Math.max(defRows, dynMax[`adv_${i}`] + 1));
     }
   }
@@ -1015,7 +1015,7 @@ function clearSheet(silent = false, targetSplat = currentSplat) {
   setMeritFlawRowCount(targetSplat, 'flaw', DEFAULT_MF_ROWS);
   setCombatRowCount(targetSplat, DEFAULT_COMBAT_ROWS);
   for (let i = 0; i <= 2; i++) {
-    const defRows = (targetSplat === 'wraith' && i === 1) || (targetSplat === 'mortal' && i === 0) ? 10 : 6;
+    const defRows = (targetSplat === 'wraith' && i === 1) ? 10 : 6;
     setDynRowCount(targetSplat, `adv_${i}`, defRows);
     setCustomAbiRowCount(targetSplat, i, 0);
   }
@@ -1277,7 +1277,7 @@ function dictDecodeUtf8(bytes) {
 }
 
 function getDefaultAdvRowCount(splat, advIdx) {
-  return (splat === 'wraith' && advIdx === 1) || (splat === 'mortal' && advIdx === 0) ? 10 : 6;
+  return (splat === 'wraith' && advIdx === 1) ? 10 : 6;
 }
 
 function packStateBinary(state) {
