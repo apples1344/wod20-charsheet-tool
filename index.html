@@ -4742,7 +4742,7 @@ const SPLAT_GUIDES = {
       <li><strong>Attributes:</strong> +6 / +4 / +3 priority dots<span class="guide-note">Starts with 1 dot each (9 / 7 / 6 category totals; 22 total)</span></li>
       <li><strong>Abilities:</strong> 11 / 7 / 4 (max 3 before Freebies)</li>
       <li><strong>Backgrounds:</strong> 5</li>
-      <li><strong>Virtues:</strong> 7 (start at 1 each)</li>
+      <li><strong>Virtues:</strong> +7 dots<span class="guide-note">Starts with 1 dot each (10 total across 3 Virtues)</span></li>
       <li><strong>Freebie Points:</strong> 21</li>
     </ul>
     <h4>Key Traits</h4>
@@ -4786,7 +4786,7 @@ const SPLAT_GUIDES = {
       <li><strong>Abilities:</strong> 13 / 9 / 5 (max 3 before Freebies)</li>
       <li><strong>Disciplines:</strong> 3</li>
       <li><strong>Backgrounds:</strong> 5</li>
-      <li><strong>Virtues:</strong> 7 (start at 1 each)</li>
+      <li><strong>Virtues:</strong> +7 dots<span class="guide-note">Starts with 1 dot each (10 total across 3 Virtues)</span></li>
       <li><strong>Freebie Points:</strong> 15</li>
     </ul>
     <h4>Key Traits</h4>
@@ -5102,7 +5102,7 @@ function updateGuideTally() {
 }
 
 const DOT_SCALE_GUIDE_HTML = `
-  <h4>Global Dot Rating Scale (0–5: Mortal Baseline)</h4>
+  <h4>Global Dot Rating Scale (0–5: Standard Scale)</h4>
   <table class="guide-scale-table">
     <thead><tr><th>Dots</th><th>Rating &amp; Meaning</th></tr></thead>
     <tbody>
@@ -5128,24 +5128,24 @@ const DOT_SCALE_GUIDE_HTML = `
       </tr>
       <tr>
         <td class="guide-scale-dots">5</td>
-        <td><span class="guide-scale-rating">Apex</span>The absolute ceiling of unaugmented mortal potential; a once-in-a-generation prodigy.<span class="guide-scale-example">e.g., An Olympic gold medalist, Nikola Tesla, or Miyamoto Musashi.</span></td>
+        <td><span class="guide-scale-rating">Apex</span>The ceiling of unaugmented mortal potential and the standard cap for starting supernatural characters; a once-in-a-generation prodigy.<span class="guide-scale-example">e.g., An Olympic gold medalist, Nikola Tesla, or Miyamoto Musashi.</span></td>
       </tr>
     </tbody>
   </table>
 
   <details id="guideElderScaleDetails" class="guide-elder-details">
     <summary class="guide-elder-summary">
-      <span>6–10: Elder &amp; Supernatural</span>
+      <span>6–10: Elder &amp; Mythic</span>
       <span id="guideElderBadge" class="guide-elder-badge">10-Dot Mode Off</span>
     </summary>
     <div class="guide-elder-body">
-      <p class="guide-scale-intro">Normal humans hard-cap at <strong>5 dots</strong>; ratings from <strong>6–10</strong> apply to <strong>10-Dot Mode</strong> for ancient vampires, high-rank shifters, archmages, and mythic beings.</p>
+      <p class="guide-scale-intro">Both mortals and standard supernatural characters hard-cap at <strong>5 dots</strong>; ratings from <strong>6–10</strong> only unlock in <strong>10-Dot Mode</strong> for ancient Elders (7th Gen or lower), high-rank shifters, archmages, and mythic beings.</p>
       <table class="guide-scale-table">
         <thead><tr><th>Dots</th><th>Rating &amp; Meaning</th></tr></thead>
         <tbody>
           <tr>
             <td class="guide-scale-dots">6</td>
-            <td><span class="guide-scale-rating">Preternatural</span>Visibly surpasses human limits; impossible without supernatural blood, spiritual blessing, or Awakened might.<span class="guide-scale-example">e.g., A mythic hero bending iron bars barehanded.</span></td>
+            <td><span class="guide-scale-rating">Preternatural</span>Visibly surpasses human limits; impossible without ancient blood, deep spiritual might, or Awakened mastery.<span class="guide-scale-example">e.g., A mythic hero bending iron bars barehanded.</span></td>
           </tr>
           <tr>
             <td class="guide-scale-dots">7</td>
@@ -5157,7 +5157,7 @@ const DOT_SCALE_GUIDE_HTML = `
           </tr>
           <tr>
             <td class="guide-scale-dots">9</td>
-            <td><span class="guide-scale-rating">Incarnate</span>A walking embodiment of the trait itself; mortals cannot meaningfully contest this rating.<span class="guide-scale-example">e.g., Sun Wukong or mythic Thor shattering mountains.</span></td>
+            <td><span class="guide-scale-rating">Incarnate</span>A walking embodiment of the trait itself; ordinary characters cannot meaningfully contest this rating.<span class="guide-scale-example">e.g., Sun Wukong or mythic Thor shattering mountains.</span></td>
           </tr>
           <tr>
             <td class="guide-scale-dots">10</td>
