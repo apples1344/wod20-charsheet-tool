@@ -147,6 +147,7 @@ function bindControls() {
     isTenDotMode = !isTenDotMode;
     document.body.classList.toggle('mode-10-dot', isTenDotMode);
     document.getElementById('dotToggleBtn').textContent = isTenDotMode ? '5-Dot Mode' : '10-Dot Mode';
+    if (typeof syncGuideTenDotMode === 'function') syncGuideTenDotMode();
     isSheetDirty = true;
     scheduleAutoSave();
   });
@@ -725,6 +726,7 @@ function resetTenDotModeUI() {
   isTenDotMode = false;
   document.body.classList.remove('mode-10-dot');
   document.getElementById('dotToggleBtn').textContent = '10-Dot Mode';
+  if (typeof syncGuideTenDotMode === 'function') syncGuideTenDotMode();
 }
 
 function switchSplat(splat) {
@@ -987,6 +989,7 @@ function restoreState(state) {
   updateWoundPenalty(state.splat);
   updateDocumentTitle();
   updateGuideTally();
+  if (typeof syncGuideTenDotMode === 'function') syncGuideTenDotMode();
   requestAnimationFrame(() => autoResizeTextareas(active));
 }
 
@@ -2025,15 +2028,121 @@ function updateGuideTally() {
   `;
 }
 
+const DOT_SCALE_GUIDE_HTML = `
+  <h4>Global Dot Rating Scale (0–5: Mortal Baseline)</h4>
+  <table class="guide-scale-table">
+    <thead><tr><th>Dots</th><th>Rating &amp; Meaning</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="guide-scale-dots">0</td>
+        <td><span class="guide-scale-rating">Untrained</span>Zero experience or conditioning; must rely on blind luck and cannot attempt specialized tasks.<span class="guide-scale-example">e.g., Someone who has never sat behind the wheel of a car.</span></td>
+      </tr>
+      <tr>
+        <td class="guide-scale-dots">1</td>
+        <td><span class="guide-scale-rating">Rookie</span>Basic familiarity; handles routine, low-stakes tasks fine but falters under real pressure.<span class="guide-scale-example">e.g., A weekend jogger, home cook, or first-month boxing student.</span></td>
+      </tr>
+      <tr>
+        <td class="guide-scale-dots">2</td>
+        <td><span class="guide-scale-rating">Seasoned</span>Solid, everyday proficiency; the healthy adult or working-professional standard.<span class="guide-scale-example">e.g., A patrol officer, auto mechanic, or regular gym-goer.</span></td>
+      </tr>
+      <tr>
+        <td class="guide-scale-dots">3</td>
+        <td><span class="guide-scale-rating">Veteran</span>Accomplished specialist tested under fire; respected in their field and able to train others.<span class="guide-scale-example">e.g., A SWAT operator, ER trauma surgeon, or regional amateur champ.</span></td>
+      </tr>
+      <tr>
+        <td class="guide-scale-dots">4</td>
+        <td><span class="guide-scale-rating">Elite</span>Standout, top-1% practitioner in a major city; reputation precedes them and shifts the odds of a scene.<span class="guide-scale-example">e.g., An Olympic qualifier, chief neurosurgeon, or top syndicate enforcer.</span></td>
+      </tr>
+      <tr>
+        <td class="guide-scale-dots">5</td>
+        <td><span class="guide-scale-rating">Apex</span>The absolute ceiling of unaugmented mortal potential; a once-in-a-generation prodigy.<span class="guide-scale-example">e.g., An Olympic gold medalist, Nikola Tesla, or Miyamoto Musashi.</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <details id="guideElderScaleDetails" class="guide-elder-details">
+    <summary class="guide-elder-summary">
+      <span>6–10: Elder &amp; Supernatural</span>
+      <span id="guideElderBadge" class="guide-elder-badge">10-Dot Mode Off</span>
+    </summary>
+    <div class="guide-elder-body">
+      <p class="guide-scale-intro">Normal humans hard-cap at <strong>5 dots</strong>; ratings from <strong>6–10</strong> apply to <strong>10-Dot Mode</strong> for ancient vampires, high-rank shifters, archmages, and mythic beings.</p>
+      <table class="guide-scale-table">
+        <thead><tr><th>Dots</th><th>Rating &amp; Meaning</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="guide-scale-dots">6</td>
+            <td><span class="guide-scale-rating">Preternatural</span>Visibly surpasses human limits; impossible without supernatural blood, spiritual blessing, or Awakened might.<span class="guide-scale-example">e.g., A mythic hero bending iron bars barehanded.</span></td>
+          </tr>
+          <tr>
+            <td class="guide-scale-dots">7</td>
+            <td><span class="guide-scale-rating">Mythic</span>A force of nature whose feats defy mundane physics or historical records.<span class="guide-scale-example">e.g., Hercules wrestling monstrous beasts.</span></td>
+          </tr>
+          <tr>
+            <td class="guide-scale-dots">8</td>
+            <td><span class="guide-scale-rating">Legendary</span>Near-unstoppable within their domain; whispered of across entire factions or centuries.<span class="guide-scale-example">e.g., Achilles turning the tide of an entire war single-handedly.</span></td>
+          </tr>
+          <tr>
+            <td class="guide-scale-dots">9</td>
+            <td><span class="guide-scale-rating">Incarnate</span>A walking embodiment of the trait itself; mortals cannot meaningfully contest this rating.<span class="guide-scale-example">e.g., Sun Wukong or mythic Thor shattering mountains.</span></td>
+          </tr>
+          <tr>
+            <td class="guide-scale-dots">10</td>
+            <td><span class="guide-scale-rating">Primordial</span>Plot-device tier; reality bends around the sheer weight of this trait.<span class="guide-scale-example">e.g., Odin or Zeus—narrative forces where rolling dice is a formality.</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+`;
+
+let activeGuideTab = 'creation';
+
+function syncGuideTenDotMode() {
+  const details = document.getElementById('guideElderScaleDetails');
+  const badge = document.getElementById('guideElderBadge');
+  if (details) {
+    details.open = Boolean(isTenDotMode);
+  }
+  if (badge) {
+    badge.textContent = isTenDotMode ? '10-Dot Mode Active' : '10-Dot Mode Off';
+    badge.classList.toggle('active', Boolean(isTenDotMode));
+  }
+}
+
+function setGuideTab(tabName) {
+  activeGuideTab = tabName === 'scale' ? 'scale' : 'creation';
+  document.querySelectorAll('.guide-tab-btn').forEach(btn => {
+    const isActive = btn.dataset.tab === activeGuideTab;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+  updateGuidePanel();
+  const content = document.getElementById('guideContent');
+  if (content) content.scrollTop = 0;
+}
+
 function updateGuidePanel() {
   const content = document.getElementById('guideContent');
   const title = document.getElementById('guideTitle');
-  if (content && SPLAT_GUIDES[currentSplat]) {
-    content.innerHTML = SPLAT_GUIDES[currentSplat];
-    const splatNames = { mortal: 'Mortal', vampire: 'Vampire', werewolf: 'Werewolf', mage: 'Mage', changeling: 'Changeling', wraith: 'Wraith' };
-    title.textContent = `${splatNames[currentSplat]} Creation Guide`;
+  const tally = document.getElementById('guideTally');
+  const splatNames = { mortal: 'Mortal', vampire: 'Vampire', werewolf: 'Werewolf', mage: 'Mage', changeling: 'Changeling', wraith: 'Wraith' };
+
+  if (activeGuideTab === 'scale') {
+    if (title) title.textContent = 'Dot Rating Scale';
+    if (tally) tally.style.display = 'none';
+    if (content) {
+      content.innerHTML = DOT_SCALE_GUIDE_HTML;
+      syncGuideTenDotMode();
+    }
+  } else {
+    if (title) title.textContent = `${splatNames[currentSplat]} Creation Guide`;
+    if (tally) tally.style.display = 'block';
+    if (content && SPLAT_GUIDES[currentSplat]) {
+      content.innerHTML = SPLAT_GUIDES[currentSplat];
+    }
+    updateGuideTally();
   }
-  updateGuideTally();
 }
 
 function toggleGuide() {
@@ -2043,7 +2152,7 @@ function toggleGuide() {
     const opening = !panel.classList.contains('open');
     if (opening && dicePanel) dicePanel.classList.remove('open');
     panel.classList.toggle('open', opening);
-    if (opening) updateGuideTally();
+    if (opening) updateGuidePanel();
   }
 }
 
@@ -2520,4 +2629,7 @@ function registerServiceWorker() {
 function bindGuide() {
   document.getElementById('toggleGuideBtn').addEventListener('click', toggleGuide);
   document.getElementById('closeGuideBtn').addEventListener('click', toggleGuide);
+  document.querySelectorAll('.guide-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => setGuideTab(btn.dataset.tab));
+  });
 }
