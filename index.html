@@ -115,7 +115,7 @@
           <optgroup label="Vampire (V20)">
             <option value="vampire_brujah">Jax Morales (Brujah)</option>
             <option value="vampire_tremere">Regent Vance (Tremere)</option>
-            <option value="vampire_dracula">Count Dracula (Elder)</option>
+            <option value="vampire_voivode">Voivode Dragomir (Elder)</option>
           </optgroup>
           <optgroup label="Werewolf (W20)">
             <option value="werewolf_ahroun">Kallum (Get of Fenris)</option>
@@ -403,12 +403,7 @@
     </div>
   </div>
 
-  <button type="button" class="btn btn-accent dice-toggle-btn no-print" id="toggleDiceBtn" title="Toggle Storyteller Dice Roller" aria-label="Toggle Storyteller Dice Roller">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <polygon points="12 2 21 9 18 20 6 20 3 9 12 2"></polygon>
-      <text x="12" y="15" text-anchor="middle" fill="currentColor" stroke="none" font-size="7.5" font-weight="bold" font-family="sans-serif">10</text>
-    </svg>
-  </button>
+
 
   <div id="guidePanel" class="guide-panel no-print" role="dialog" aria-labelledby="guideTitle">
     <div class="guide-header">
@@ -422,9 +417,25 @@
     <div class="guide-tally" id="guideTally" aria-live="polite"></div>
     <div class="guide-content" id="guideContent"></div>
   </div>
-  <button type="button" class="btn btn-accent guide-toggle-btn no-print" id="toggleGuideBtn" title="Toggle Character Guide">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-  </button>
+  <div class="floating-dock no-print" role="toolbar" aria-label="Sheet Tools">
+    <button type="button" class="dock-btn" id="toggleDiceBtn" title="Toggle Storyteller Dice Roller" aria-label="Toggle Storyteller Dice Roller" aria-expanded="false">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polygon points="12 2 21 9 18 20 6 20 3 9 12 2"></polygon>
+        <text x="12" y="15" text-anchor="middle" fill="currentColor" stroke="none" font-size="7.5" font-weight="bold" font-family="sans-serif">10</text>
+      </svg>
+      <span class="dock-label">Dice Roller</span>
+      <span class="dock-badge" id="dockPoolBadge">5d10</span>
+    </button>
+    <span class="dock-divider" aria-hidden="true"></span>
+    <button type="button" class="dock-btn" id="toggleGuideBtn" title="Toggle Character Guide" aria-label="Toggle Character Guide" aria-expanded="false">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+      </svg>
+      <span class="dock-label">Guide</span>
+    </button>
+  </div>
 
   <div class="toast-container" id="toastContainer"></div>
   <script type="module" src="./assets/js/app.js"></script>

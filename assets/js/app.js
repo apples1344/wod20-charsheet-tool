@@ -121,14 +121,22 @@ function bindControls() {
       if (guidePanel && guidePanel.classList.contains('open')) {
         guidePanel.classList.remove('open');
         const toggleBtn = document.getElementById('toggleGuideBtn');
-        if (toggleBtn) toggleBtn.focus();
+        if (toggleBtn) {
+          toggleBtn.classList.remove('active');
+          toggleBtn.setAttribute('aria-expanded', 'false');
+          toggleBtn.focus();
+        }
         return;
       }
       const dicePanel = document.getElementById('dicePanel');
       if (dicePanel && dicePanel.classList.contains('open')) {
         dicePanel.classList.remove('open');
         const toggleDiceBtn = document.getElementById('toggleDiceBtn');
-        if (toggleDiceBtn) toggleDiceBtn.focus();
+        if (toggleDiceBtn) {
+          toggleDiceBtn.classList.remove('active');
+          toggleDiceBtn.setAttribute('aria-expanded', 'false');
+          toggleDiceBtn.focus();
+        }
       }
     }
   });
@@ -643,12 +651,32 @@ function bindDotContainer(container) {
     scheduleAutoSave();
   });
 
+  const setHoverTrail = (hoverTotal) => {
+    if (paired) {
+      paired.row1.querySelectorAll('.' + childClass).forEach(b => {
+        const idx = parseInt(b.dataset.idx, 10);
+        b.classList.toggle('hover-preview', hoverTotal > 0 && idx <= hoverTotal);
+      });
+      paired.row2.querySelectorAll('.' + childClass).forEach(b => {
+        const idx = parseInt(b.dataset.idx, 10) + 10;
+        b.classList.toggle('hover-preview', hoverTotal > 0 && idx <= hoverTotal);
+      });
+    } else {
+      container.querySelectorAll('.' + childClass).forEach(b => {
+        const idx = parseInt(b.dataset.idx, 10);
+        b.classList.toggle('hover-preview', hoverTotal > 0 && idx <= hoverTotal);
+      });
+    }
+  };
+  container.addEventListener('mouseleave', () => setHoverTrail(0));
+
   container.querySelectorAll('.' + childClass).forEach(el => {
     const rawIdx = parseInt(el.dataset.idx, 10);
     const displayIdx = rawIdx + idxOffset;
     el.setAttribute('tabindex', '0');
     el.setAttribute('role', 'button');
     el.setAttribute('aria-label', `${contextLabel} ${isSquare ? 'box' : 'dot'} ${displayIdx}`);
+    el.addEventListener('mouseenter', () => setHoverTrail(displayIdx));
     const clickHandler = () => {
       if (paired) {
         const v1 = parseInt(paired.row1.dataset.val || '0', 10);
@@ -1629,6 +1657,7 @@ function bindRosterControls() {
       flushAutoSave();
       const store = loadGlobalStore();
       const payload = {
+        _darkPack: DARK_PACK_JSON_NOTICE,
         type: 'wod20_roster_backup',
         exportedAt: new Date().toISOString(),
         roster: store.roster
@@ -1731,6 +1760,9 @@ function hardResetWebsite() {
 
   const guidePanel = document.getElementById('guidePanel');
   if (guidePanel) guidePanel.classList.remove('open');
+  const dicePanel = document.getElementById('dicePanel');
+  if (dicePanel) dicePanel.classList.remove('open');
+  syncDockButtonStates();
 
   isRestoring = true;
   ['mortal', 'vampire', 'werewolf', 'mage', 'changeling', 'wraith'].forEach(sp => {
@@ -2246,10 +2278,21 @@ async function checkUrlForCharacter() {
   return false;
 }
 
+const DARK_PACK_JSON_NOTICE = {
+  license: 'World of Darkness Dark Pack Agreement',
+  agreementUrl: 'https://www.paradoxinteractive.com/games/world-of-darkness/community/dark-pack-agreement',
+  copyright: 'Portions of the materials are the copyrights and trademarks of Paradox Interactive AB, and are used with permission. All rights reserved. For more information please visit worldofdarkness.com.',
+  disclaimer: 'This is an unofficial fan creation and is not affiliated with or endorsed by Paradox Interactive or World of Darkness.'
+};
+
 function saveAsJson() {
   const state = captureCurrentState();
   const name = state.inputs[state.splat + '_char_name'] || 'character';
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const payload = {
+    _darkPack: DARK_PACK_JSON_NOTICE,
+    ...state
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -2383,7 +2426,7 @@ const SPLAT_GUIDES = {
     <h4>Creation Process (Hunters Hunted II)</h4>
     <ul>
       <li><strong>Attributes:</strong> +6 / +4 / +3 priority dots<span class="guide-note">Starts with 1 dot each (9 / 7 / 6 category totals; 22 total)</span></li>
-      <li><strong>Abilities:</strong> 11 / 7 / 4 (max 3 before Freebies)</li>
+      <li><strong>Abilities:</strong> 13 / 9 / 5 (max 3 before Freebies)</li>
       <li><strong>Backgrounds:</strong> 5</li>
       <li><strong>Virtues:</strong> +7 dots<span class="guide-note">Starts with 1 dot each (10 total across 3 Virtues)</span></li>
       <li><strong>Freebie Points:</strong> 21</li>
@@ -2419,8 +2462,9 @@ const SPLAT_GUIDES = {
         <tr><td>Willpower</td><td>current</td></tr>
       </tbody>
     </table>
+    <span class="guide-note">Note: True Faith cannot be bought with XP.</span>
     <h4>Specialties</h4>
-    <p>Attributes and Abilities rated 4+ gain a Specialty (re-roll 10s on related checks).</p>
+    <p>Attributes and Abilities rated 4+ gain a Specialty.</p>
   `,
   vampire: `
     <h4>Creation Process (V20)</h4>
@@ -2575,7 +2619,7 @@ const SPLAT_GUIDES = {
     </ul>
     <h4>Key Traits</h4>
     <ul>
-      <li><strong>Base Pools:</strong> Glamour 4, Willpower 4, Banality 3 (modified by Seeming)</li>
+      <li><strong>Base Pools:</strong> Childling: G 5 / WP 3 / B 1. Wilder: G 4 / WP 4 / B 3. Grump: G 3 / WP 5 / B 5.</li>
       <li><strong>Health:</strong> Chimerical damage knocks unconscious; Real damage can kill.</li>
     </ul>
     <h4>Freebie Point Costs (15 pts)</h4>
@@ -2585,10 +2629,10 @@ const SPLAT_GUIDES = {
         <tr><td>Attribute</td><td>5 / dot</td></tr>
         <tr><td>Ability</td><td>2 / dot</td></tr>
         <tr><td>Art</td><td>5 / dot</td></tr>
-        <tr><td>Realm</td><td>2 / dot</td></tr>
+        <tr><td>Realm</td><td>3 / dot</td></tr>
         <tr><td>Background</td><td>1 / dot</td></tr>
         <tr><td>Glamour</td><td>3 / dot</td></tr>
-        <tr><td>Willpower</td><td>1 / dot</td></tr>
+        <tr><td>Willpower</td><td>2 / dot</td></tr>
         <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
       </tbody>
     </table>
@@ -2602,7 +2646,7 @@ const SPLAT_GUIDES = {
         <tr><td>Ability</td><td>current &times; 2</td></tr>
         <tr><td>Art</td><td>current &times; 4</td></tr>
         <tr><td>Realm</td><td>current &times; 3</td></tr>
-        <tr><td>Glamour</td><td>current &times; 3</td></tr>
+        <tr><td>Glamour</td><td>current &times; 2</td></tr>
         <tr><td>Willpower</td><td>current &times; 2</td></tr>
       </tbody>
     </table>
@@ -2861,6 +2905,21 @@ function updateGuidePanel() {
   }
 }
 
+function syncDockButtonStates() {
+  const guideOpen = Boolean(document.getElementById('guidePanel')?.classList.contains('open'));
+  const diceOpen = Boolean(document.getElementById('dicePanel')?.classList.contains('open'));
+  const guideBtn = document.getElementById('toggleGuideBtn');
+  const diceBtn = document.getElementById('toggleDiceBtn');
+  if (guideBtn) {
+    guideBtn.classList.toggle('active', guideOpen);
+    guideBtn.setAttribute('aria-expanded', guideOpen ? 'true' : 'false');
+  }
+  if (diceBtn) {
+    diceBtn.classList.toggle('active', diceOpen);
+    diceBtn.setAttribute('aria-expanded', diceOpen ? 'true' : 'false');
+  }
+}
+
 function toggleGuide() {
   const panel = document.getElementById('guidePanel');
   const dicePanel = document.getElementById('dicePanel');
@@ -2868,6 +2927,7 @@ function toggleGuide() {
     const opening = !panel.classList.contains('open');
     if (opening && dicePanel) dicePanel.classList.remove('open');
     panel.classList.toggle('open', opening);
+    syncDockButtonStates();
     if (opening) updateGuidePanel();
   }
 }
@@ -2883,6 +2943,7 @@ function toggleDicePanel(forceOpen) {
   const opening = typeof forceOpen === 'boolean' ? forceOpen : !panel.classList.contains('open');
   if (opening && guidePanel) guidePanel.classList.remove('open');
   panel.classList.toggle('open', opening);
+  syncDockButtonStates();
   if (opening) syncDiceWoundPenalty();
 }
 
@@ -2907,6 +2968,7 @@ function getActiveWoundPenalty(splat = currentSplat) {
 function updateEffectivePoolNote() {
   const poolInput = document.getElementById('dicePoolInput');
   const noteEl = document.getElementById('diceEffectiveNote');
+  const dockBadge = document.getElementById('dockPoolBadge');
   const woundToggle = document.getElementById('diceWoundToggle');
   if (!poolInput || !noteEl) return;
 
@@ -2917,9 +2979,17 @@ function updateEffectivePoolNote() {
   if (applyWound && wound.incapacitated) {
     noteEl.textContent = 'Incapacitated (0 dice)';
     noteEl.style.color = '#ff7b7b';
+    if (dockBadge) {
+      dockBadge.textContent = 'Incap';
+      dockBadge.classList.add('incap');
+    }
     return;
   }
   const effective = Math.max(0, base + (applyWound ? wound.penalty : 0));
+  if (dockBadge) {
+    dockBadge.textContent = `${effective}d10`;
+    dockBadge.classList.remove('incap');
+  }
   if (applyWound && wound.penalty < 0) {
     noteEl.textContent = `Rolling ${effective}d10 (${base} ${wound.penalty} wound)`;
     noteEl.style.color = '#f5c96b';
