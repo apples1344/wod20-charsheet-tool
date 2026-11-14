@@ -412,6 +412,17 @@ function bindControls() {
       return;
     }
 
+    const tempStepBtn = e.target.closest('.temp-step-btn');
+    if (tempStepBtn) {
+      const targetId = tempStepBtn.dataset.target;
+      const delta = parseInt(tempStepBtn.dataset.delta || '0', 10);
+      const container = targetId ? document.querySelector(`.boxes-container[data-id="${targetId}"]`) : null;
+      if (container && delta !== 0) {
+        stepTemporaryBoxes(container, delta);
+      }
+      return;
+    }
+
     const healBtn = e.target.closest('.clearHealthBtn');
     if (healBtn) {
       const splat = healBtn.dataset.splat;
@@ -487,6 +498,9 @@ function bindControls() {
 
   document.getElementById('sheetForm').addEventListener('input', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      if (e.target.classList.contains('trait-spec-input')) {
+        syncSpecialtyTitle(e.target);
+      }
       isSheetDirty = true;
       scheduleAutoSave();
       if (e.target.id === currentSplat + '_char_name') {
@@ -604,7 +618,7 @@ function hasActiveSheetData() {
 function getTraitContextLabel(container) {
   const row = container.closest('.trait-row, .trait-flex-row, .pool-box');
   if (!row) return container.dataset.id || 'Trait';
-  const lbl = row.querySelector('.trait-label, .pool-title');
+  const lbl = row.querySelector('.trait-label, .pool-title-text, .pool-title');
   if (lbl && lbl.textContent.trim()) return lbl.textContent.trim();
   const inp = row.querySelector('input.trait-name-input');
   if (inp && inp.value.trim()) return inp.value.trim();
@@ -620,6 +634,32 @@ function getPairedBoxContainers(container) {
   const row2 = scope.querySelector(`[data-id="${match[1]}2"]`);
   if (!row1 || !row2) return null;
   return { row1, row2, rowNum: parseInt(match[2], 10) };
+}
+
+function stepTemporaryBoxes(container, delta) {
+  const paired = getPairedBoxContainers(container);
+  if (paired) {
+    const v1 = parseInt(paired.row1.dataset.val || '0', 10);
+    const v2 = parseInt(paired.row2.dataset.val || '0', 10);
+    const currentTotal = v1 === 10 ? 10 + v2 : v1;
+    const nextTotal = Math.max(0, Math.min(20, currentTotal + delta));
+    if (nextTotal === currentTotal) return;
+    const next1 = Math.min(10, nextTotal);
+    const next2 = Math.max(0, nextTotal - 10);
+    paired.row1.dataset.val = next1;
+    paired.row2.dataset.val = next2;
+    updateVisual(paired.row1, next1, 'square-box');
+    updateVisual(paired.row2, next2, 'square-box');
+  } else {
+    const current = parseInt(container.dataset.val || '0', 10);
+    const next = Math.max(0, Math.min(10, current + delta));
+    if (next === current) return;
+    container.dataset.val = next;
+    updateVisual(container, next, 'square-box');
+  }
+  updatePoolCounters(container.closest('.pool-box') || document);
+  isSheetDirty = true;
+  scheduleAutoSave();
 }
 
 function bindDotContainer(container) {
@@ -647,6 +687,7 @@ function bindDotContainer(container) {
       if (!isSquare) updateGuideTally();
       if (typeof refreshSelectedDiceTraits === 'function') refreshSelectedDiceTraits();
     }
+    updatePoolCounters(container.closest('.pool-box') || document);
     isSheetDirty = true;
     scheduleAutoSave();
   });
@@ -698,6 +739,7 @@ function bindDotContainer(container) {
         if (!isSquare) updateGuideTally();
         if (typeof refreshSelectedDiceTraits === 'function') refreshSelectedDiceTraits();
       }
+      updatePoolCounters(container.closest('.pool-box') || document);
       isSheetDirty = true;
       scheduleAutoSave();
     };
@@ -763,7 +805,7 @@ function addCustomAbiRow(splat, catIdx) {
   tr.className = 'trait-flex-row';
 
   let html = `<input type="text" class="trait-name-input" id="${splat}_custom_abi_${catIdx}_${idx}_name" placeholder="Secondary Ability">`;
-  html += `<input type="text" class="trait-spec-input" id="${splat}_custom_abi_${catIdx}_${idx}_spec" placeholder="Spec" title="Trait Specialty (e.g. Revolvers, Fast-Talk)" aria-label="Specialty">`;
+  html += `<input type="text" class="trait-spec-input" id="${splat}_custom_abi_${catIdx}_${idx}_spec" placeholder="Spec" aria-label="Specialty">`;
   html += `<div class="dots-container" data-id="${splat}_custom_abi_${catIdx}_${idx}_dots" data-val="0">`;
   for (let i = 1; i <= 10; i++) {
     html += `<span class="dot${i > 5 ? ' dot-scalable-10' : ''}" data-idx="${i}"></span>`;
@@ -891,7 +933,8 @@ function updatePortrait(splat, url) {
 function resetTenDotModeUI() {
   isTenDotMode = false;
   document.body.classList.remove('mode-10-dot');
-  document.getElementById('dotToggleBtn').textContent = '10-Dot Mode';
+  const dtl = document.getElementById('dotToggleLabel');
+  if (dtl) dtl.textContent = 'Enable 10-Dot Mode';
   if (typeof syncGuideTenDotMode === 'function') syncGuideTenDotMode();
 }
 
@@ -911,10 +954,45 @@ function switchSplat(splat) {
   }
 }
 
+function updatePoolCounters(scope = document) {
+  scope.querySelectorAll('.pool-counter-badge, .renown-counter-badge').forEach(badge => {
+    const sqId = badge.dataset.sq;
+    const dotsId = badge.dataset.dots;
+    if (!sqId) return;
+    const sqEl = document.querySelector(`.boxes-container[data-id="${sqId}"]`);
+    if (!sqEl) return;
+
+    const paired = getPairedBoxContainers(sqEl);
+    let currentTemp = 0;
+    let defaultMax = 10;
+    if (paired) {
+      const v1 = parseInt(paired.row1.dataset.val || '0', 10);
+      const v2 = parseInt(paired.row2.dataset.val || '0', 10);
+      currentTemp = v1 === 10 ? 10 + v2 : v1;
+      defaultMax = 20;
+    } else {
+      currentTemp = parseInt(sqEl.dataset.val || '0', 10);
+    }
+
+    let maxVal = defaultMax;
+    if (dotsId) {
+      const dotsEl = document.querySelector(`.dots-container[data-id="${dotsId}"]`);
+      if (dotsEl) {
+        maxVal = parseInt(dotsEl.dataset.val || '0', 10);
+      }
+    }
+
+    badge.textContent = badge.classList.contains('renown-counter-badge')
+      ? `${currentTemp}/${maxVal}`
+      : `${currentTemp} / ${maxVal}`;
+  });
+}
+
 function initDotsAndBoxes() {
   document.querySelectorAll('.dots-container, .boxes-container').forEach(container => {
     bindDotContainer(container);
   });
+  updatePoolCounters();
 }
 
 function updateVisual(container, val, childClass) {
@@ -1125,6 +1203,7 @@ function restoreState(state) {
       if (id.endsWith('_portrait_url')) updatePortrait(state.splat, val);
     }
   }
+  syncAllSpecialtyTitles(active);
   if (state.dots) {
     for (const [id, val] of Object.entries(state.dots)) {
       const el = active.querySelector(`[data-id="${id}"]`);
@@ -1145,6 +1224,7 @@ function restoreState(state) {
     }
   }
   updateWoundPenalty(state.splat);
+  updatePoolCounters(active);
   updateDocumentTitle();
   updateGuideTally();
   if (typeof syncGuideTenDotMode === 'function') syncGuideTenDotMode();
@@ -1182,6 +1262,9 @@ function clearSheet(silent = false, targetSplat = currentSplat) {
   }
   active.querySelectorAll('input[type=text], textarea').forEach(el => {
     el.value = '';
+    if (el.classList.contains('trait-spec-input')) {
+      el.removeAttribute('title');
+    }
     if (el.tagName === 'TEXTAREA' && el.dataset.defaultHeight) {
       el.style.height = el.dataset.defaultHeight;
     }
@@ -1197,6 +1280,7 @@ function clearSheet(silent = false, targetSplat = currentSplat) {
     updateHealthAriaLabel(el);
   });
   updateWoundPenalty(targetSplat);
+  updatePoolCounters(active);
   updatePortrait(targetSplat, '');
   updateDocumentTitle();
   if (targetSplat === currentSplat) updateGuideTally();
@@ -2411,6 +2495,20 @@ function autoResizeTextareas(container = document) {
   });
 }
 
+function syncSpecialtyTitle(el) {
+  if (!el || !el.classList.contains('trait-spec-input')) return;
+  const text = el.value.trim();
+  if (text) {
+    el.title = text;
+  } else {
+    el.removeAttribute('title');
+  }
+}
+
+function syncAllSpecialtyTitles(container = document) {
+  container.querySelectorAll('.trait-spec-input').forEach(syncSpecialtyTitle);
+}
+
 function updateDocumentTitle() {
   const nameInput = document.getElementById(currentSplat + '_char_name');
   if (nameInput && nameInput.value.trim().length > 0) {
@@ -3299,6 +3397,7 @@ function spendOneWillpowerBox() {
   const next = cur - 1;
   wpSq.dataset.val = next;
   updateVisual(wpSq, next, 'square-box');
+  updatePoolCounters(wpSq.closest('.pool-box') || active);
   isSheetDirty = true;
   scheduleAutoSave();
   showToast(`Spent 1 Willpower (${next}${max ? '/' + max : ''} remaining)`);
@@ -3427,7 +3526,8 @@ function bindDiceRoller() {
       if (!dots) return;
       const id = dots.dataset.id;
       const pathInp = box.querySelector('input[type="text"]');
-      const labelName = (pathInp && pathInp.value.trim()) ? pathInp.value.trim() : poolTitle.textContent.trim();
+      const titleTextEl = poolTitle.querySelector('.pool-title-text') || poolTitle;
+      const labelName = (pathInp && pathInp.value.trim()) ? pathInp.value.trim() : titleTextEl.textContent.trim();
       selectTraitForDice({
         id,
         name: labelName,
