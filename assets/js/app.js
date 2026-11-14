@@ -59,11 +59,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   } else {
     const importedState = captureCurrentState();
     const store = loadGlobalStore();
-    const slot = createSlotRecord(importedState);
-    store.roster.push(slot);
-    store.activeSplat = currentSplat;
-    store.activeSlotId = slot.id;
-    activeSlotId = slot.id;
+    const stateJson = JSON.stringify(importedState);
+    const existingSlot = store.roster.find(s => JSON.stringify(s.state) === stateJson);
+    if (existingSlot) {
+      activeSlotId = existingSlot.id;
+      store.activeSplat = currentSplat;
+      store.activeSlotId = existingSlot.id;
+    } else {
+      const slot = createSlotRecord(importedState);
+      store.roster.push(slot);
+      store.activeSplat = currentSplat;
+      store.activeSlotId = slot.id;
+      activeSlotId = slot.id;
+    }
     saveGlobalStore(store);
     isRestoring = true;
     switchSplat(currentSplat);
@@ -90,6 +98,11 @@ function bindControls() {
       const clearModal = document.getElementById('clearModal');
       if (clearModal && clearModal.style.display !== 'none') {
         clearModal.style.display = 'none';
+        return;
+      }
+      const resetRosterModal = document.getElementById('resetRosterModal');
+      if (resetRosterModal && resetRosterModal.style.display !== 'none') {
+        resetRosterModal.style.display = 'none';
         return;
       }
       const rosterModal = document.getElementById('rosterModal');
@@ -119,6 +132,33 @@ function bindControls() {
       }
     }
   });
+
+
+  // Dropdown Menu Logic
+  const moreBtn = document.getElementById('moreOptionsBtn');
+  const moreMenu = document.getElementById('moreOptionsMenu');
+  if (moreBtn && moreMenu) {
+    moreBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isExpanded = moreBtn.getAttribute('aria-expanded') === 'true';
+      moreBtn.setAttribute('aria-expanded', !isExpanded);
+      moreMenu.classList.toggle('show', !isExpanded);
+    });
+    
+    document.addEventListener('click', (e) => {
+      if (!moreBtn.contains(e.target) && !moreMenu.contains(e.target)) {
+        moreBtn.setAttribute('aria-expanded', 'false');
+        moreMenu.classList.remove('show');
+      }
+    });
+
+    moreMenu.addEventListener('click', (e) => {
+      if (e.target.closest('.dropdown-item')) {
+        moreBtn.setAttribute('aria-expanded', 'false');
+        moreMenu.classList.remove('show');
+      }
+    });
+  }
 
   window.addEventListener('resize', () => {
     syncAppBarOffset();
@@ -161,6 +201,16 @@ function bindControls() {
     document.getElementById('sampleCharSelect').value = '';
     pendingSampleKey = '';
   });
+  const sampleConfirmModalEl = document.getElementById('sampleConfirmModal');
+  if (sampleConfirmModalEl) {
+    sampleConfirmModalEl.addEventListener('click', (e) => {
+      if (e.target === sampleConfirmModalEl) {
+        sampleConfirmModalEl.style.display = 'none';
+        document.getElementById('sampleCharSelect').value = '';
+        pendingSampleKey = '';
+      }
+    });
+  }
 
   document.getElementById('confirmSampleBtn').addEventListener('click', () => {
     document.getElementById('sampleConfirmModal').style.display = 'none';
@@ -172,7 +222,7 @@ function bindControls() {
   document.getElementById('dotToggleBtn').addEventListener('click', () => {
     isTenDotMode = !isTenDotMode;
     document.body.classList.toggle('mode-10-dot', isTenDotMode);
-    document.getElementById('dotToggleBtn').textContent = isTenDotMode ? '5-Dot Mode' : '10-Dot Mode';
+    const dtl = document.getElementById('dotToggleLabel'); if(dtl) dtl.textContent = isTenDotMode ? 'Revert to 5-Dot Mode' : 'Enable 10-Dot Mode';
     if (typeof syncGuideTenDotMode === 'function') syncGuideTenDotMode();
     isSheetDirty = true;
     scheduleAutoSave();
@@ -191,6 +241,12 @@ function bindControls() {
   document.getElementById('cancelClearBtn').addEventListener('click', () => {
     document.getElementById('clearModal').style.display = 'none';
   });
+  const clearModalEl = document.getElementById('clearModal');
+  if (clearModalEl) {
+    clearModalEl.addEventListener('click', (e) => {
+      if (e.target === clearModalEl) clearModalEl.style.display = 'none';
+    });
+  }
   document.getElementById('confirmClearBtn').addEventListener('click', () => {
     document.getElementById('clearModal').style.display = 'none';
     document.getElementById('sampleCharSelect').value = '';
@@ -205,6 +261,12 @@ function bindControls() {
   document.getElementById('cancelHardResetBtn').addEventListener('click', () => {
     document.getElementById('hardResetModal').style.display = 'none';
   });
+  const hardResetModalEl = document.getElementById('hardResetModal');
+  if (hardResetModalEl) {
+    hardResetModalEl.addEventListener('click', (e) => {
+      if (e.target === hardResetModalEl) hardResetModalEl.style.display = 'none';
+    });
+  }
   document.getElementById('confirmHardResetBtn').addEventListener('click', () => {
     document.getElementById('hardResetModal').style.display = 'none';
     hardResetWebsite();
@@ -528,18 +590,7 @@ function jumpToSection(section) {
 }
 
 function hasActiveSheetData() {
-  const active = document.getElementById('splat-' + currentSplat);
-  if (!active) return false;
-  for (const el of active.querySelectorAll('input[type=text], textarea')) {
-    if (el.value && el.value.trim().length > 0) return true;
-  }
-  for (const el of active.querySelectorAll('.dots-container, .boxes-container')) {
-    if (parseInt(el.dataset.val || '0', 10) > 0) return true;
-  }
-  for (const el of active.querySelectorAll('.health-box')) {
-    if (el.dataset.state && el.dataset.state !== 'empty') return true;
-  }
-  return false;
+  return stateHasAnyData(captureCurrentState());
 }
 
 function getTraitContextLabel(container) {
@@ -552,22 +603,73 @@ function getTraitContextLabel(container) {
   return container.dataset.id || 'Trait';
 }
 
+function getPairedBoxContainers(container) {
+  const id = container.dataset.id || '';
+  const match = id.match(/^(.+_sq)([12])$/);
+  if (!match) return null;
+  const scope = container.closest('.pool-box') || document;
+  const row1 = scope.querySelector(`[data-id="${match[1]}1"]`);
+  const row2 = scope.querySelector(`[data-id="${match[1]}2"]`);
+  if (!row1 || !row2) return null;
+  return { row1, row2, rowNum: parseInt(match[2], 10) };
+}
+
 function bindDotContainer(container) {
   const isSquare = container.classList.contains('boxes-container');
   const childClass = isSquare ? 'square-box' : 'dot';
   const contextLabel = getTraitContextLabel(container);
-  container.querySelectorAll('.' + childClass).forEach(el => {
-    el.setAttribute('tabindex', '0');
-    el.setAttribute('role', 'button');
-    el.setAttribute('aria-label', `${contextLabel} ${isSquare ? 'box' : 'dot'} ${el.dataset.idx}`);
-    const clickHandler = () => {
+  const paired = isSquare ? getPairedBoxContainers(container) : null;
+  const idxOffset = paired && paired.rowNum === 2 ? 10 : 0;
+
+  container.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (paired) {
+      const v1 = parseInt(paired.row1.dataset.val || '0', 10);
+      const v2 = parseInt(paired.row2.dataset.val || '0', 10);
+      if (v1 === 0 && v2 === 0) return;
+      paired.row1.dataset.val = 0;
+      paired.row2.dataset.val = 0;
+      updateVisual(paired.row1, 0, childClass);
+      updateVisual(paired.row2, 0, childClass);
+    } else {
       const current = parseInt(container.dataset.val || '0', 10);
-      const idx = parseInt(el.dataset.idx, 10);
-      const next = current === idx ? Math.max(0, idx - 1) : idx;
-      container.dataset.val = next;
-      updateVisual(container, next, childClass);
+      if (current === 0) return;
+      container.dataset.val = 0;
+      updateVisual(container, 0, childClass);
       if (!isSquare) updateGuideTally();
       if (typeof refreshSelectedDiceTraits === 'function') refreshSelectedDiceTraits();
+    }
+    isSheetDirty = true;
+    scheduleAutoSave();
+  });
+
+  container.querySelectorAll('.' + childClass).forEach(el => {
+    const rawIdx = parseInt(el.dataset.idx, 10);
+    const displayIdx = rawIdx + idxOffset;
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', `${contextLabel} ${isSquare ? 'box' : 'dot'} ${displayIdx}`);
+    const clickHandler = () => {
+      if (paired) {
+        const v1 = parseInt(paired.row1.dataset.val || '0', 10);
+        const v2 = parseInt(paired.row2.dataset.val || '0', 10);
+        const currentTotal = v1 === 10 ? 10 + v2 : v1;
+        const clickedTotal = displayIdx;
+        const nextTotal = currentTotal === clickedTotal ? Math.max(0, clickedTotal - 1) : clickedTotal;
+        const next1 = Math.min(10, nextTotal);
+        const next2 = Math.max(0, nextTotal - 10);
+        paired.row1.dataset.val = next1;
+        paired.row2.dataset.val = next2;
+        updateVisual(paired.row1, next1, childClass);
+        updateVisual(paired.row2, next2, childClass);
+      } else {
+        const current = parseInt(container.dataset.val || '0', 10);
+        const next = current === rawIdx ? Math.max(0, rawIdx - 1) : rawIdx;
+        container.dataset.val = next;
+        updateVisual(container, next, childClass);
+        if (!isSquare) updateGuideTally();
+        if (typeof refreshSelectedDiceTraits === 'function') refreshSelectedDiceTraits();
+      }
       isSheetDirty = true;
       scheduleAutoSave();
     };
@@ -853,7 +955,20 @@ function initHealthBoxes() {
       isSheetDirty = true;
       scheduleAutoSave();
     };
+    const reverseHandler = (e) => {
+      e.preventDefault();
+      const curState = box.dataset.state || 'empty';
+      const prevIdx = (HEALTH_STATES.indexOf(curState) - 1 + HEALTH_STATES.length) % HEALTH_STATES.length;
+      box.dataset.state = HEALTH_STATES[prevIdx];
+      box.textContent = HEALTH_SYMBOLS[HEALTH_STATES[prevIdx]];
+      updateHealthAriaLabel(box);
+      const splat = (box.dataset.id || '').split('_')[0] || currentSplat;
+      updateWoundPenalty(splat);
+      isSheetDirty = true;
+      scheduleAutoSave();
+    };
     box.addEventListener('click', clickHandler);
+    box.addEventListener('contextmenu', reverseHandler);
     box.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
@@ -910,7 +1025,7 @@ function restoreState(state) {
   if (!state || !state.splat) return;
   isTenDotMode = !!state.isTenDotMode;
   document.body.classList.toggle('mode-10-dot', isTenDotMode);
-  document.getElementById('dotToggleBtn').textContent = isTenDotMode ? '5-Dot Mode' : '10-Dot Mode';
+  const dtl = document.getElementById('dotToggleLabel'); if(dtl) dtl.textContent = isTenDotMode ? 'Revert to 5-Dot Mode' : 'Enable 10-Dot Mode';
 
   currentSplat = state.splat;
   document.body.dataset.splat = state.splat;
@@ -1069,7 +1184,7 @@ function applyTheme(theme, persist = false) {
   }
   const btn = document.getElementById('themeToggleBtn');
   if (btn) {
-    btn.textContent = currentTheme === 'parchment' ? 'Dark Theme' : 'Parchment Theme';
+    const ttl = document.getElementById('themeToggleLabel'); if(ttl) ttl.textContent = currentTheme === 'parchment' ? 'Dark Theme' : 'Parchment Theme';
   }
   const metaTheme = document.querySelector('meta[name="theme-color"]');
   if (metaTheme) {
@@ -1348,6 +1463,8 @@ function openRosterModal() {
 
 function closeRosterModal() {
   rosterDeleteConfirmId = null;
+  const confirmModal = document.getElementById('resetRosterModal');
+  if (confirmModal) confirmModal.style.display = 'none';
   const modal = document.getElementById('rosterModal');
   if (modal) modal.style.display = 'none';
 }
@@ -1375,6 +1492,13 @@ function bindRosterControls() {
 
   const doneBtn = document.getElementById('doneRosterModalBtn');
   if (doneBtn) doneBtn.addEventListener('click', closeRosterModal);
+
+  const rosterModalEl = document.getElementById('rosterModal');
+  if (rosterModalEl) {
+    rosterModalEl.addEventListener('click', (e) => {
+      if (e.target === rosterModalEl) closeRosterModal();
+    });
+  }
 
   const modalNewBtn = document.getElementById('rosterModalNewBtn');
   if (modalNewBtn) {
@@ -1530,6 +1654,55 @@ function bindRosterControls() {
       e.target.value = '';
     });
   }
+
+  const resetRosterBtn = document.getElementById('resetRosterBtn');
+  const resetRosterModal = document.getElementById('resetRosterModal');
+  const cancelResetRosterBtn = document.getElementById('cancelResetRosterBtn');
+  const confirmResetRosterBtn = document.getElementById('confirmResetRosterBtn');
+  if (resetRosterBtn && resetRosterModal) {
+    resetRosterBtn.addEventListener('click', () => {
+      rosterDeleteConfirmId = null;
+      resetRosterModal.style.display = 'flex';
+    });
+  }
+  if (cancelResetRosterBtn && resetRosterModal) {
+    cancelResetRosterBtn.addEventListener('click', () => {
+      resetRosterModal.style.display = 'none';
+    });
+  }
+  if (resetRosterModal) {
+    resetRosterModal.addEventListener('click', (e) => {
+      if (e.target === resetRosterModal) resetRosterModal.style.display = 'none';
+    });
+  }
+  if (confirmResetRosterBtn) {
+    confirmResetRosterBtn.addEventListener('click', () => {
+      resetEntireRoster();
+    });
+  }
+}
+
+function resetEntireRoster() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = null;
+  rosterDeleteConfirmId = null;
+  activeSlotId = null;
+  lastSharedSnapshot = '';
+  if (window.location.hash) {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+  document.getElementById('sampleCharSelect').value = '';
+  pendingSampleKey = '';
+
+  saveGlobalStore({ activeSplat: 'mortal', activeSlotId: null, roster: [] });
+
+  isRestoring = true;
+  V3_SPLATS.forEach(sp => clearSheet(true, sp));
+  isRestoring = false;
+
+  createNewRosterSlot('mortal', null, null);
+  closeRosterModal();
+  showToast('Roster Reset');
 }
 
 function hardResetWebsite() {
@@ -2171,7 +2344,7 @@ function reindexDynRows(tbody) {
   if (!match) return;
   const [, splat, kind] = match;
   Array.from(tbody.children).forEach((row, rowIdx) => {
-    const inp = row.querySelector('input');
+    const inp = row.querySelector('.trait-name-input');
     if (inp) inp.id = `${splat}_${kind}_${rowIdx}_name`;
     const dots = row.querySelector('.dots-container');
     if (dots) dots.dataset.id = `${splat}_${kind}_${rowIdx}_dots`;
@@ -2962,6 +3135,65 @@ function executeWodRoll() {
   renderRollHistory();
 }
 
+
+function executeInitiativeRoll() {
+  const active = document.getElementById('splat-' + currentSplat);
+  const dex = active ? getDotVal(active, `${currentSplat}_attr_dex`) : 0;
+  const wit = active ? getDotVal(active, `${currentSplat}_attr_wit`) : 0;
+  const woundToggle = document.getElementById('diceWoundToggle');
+  const wound = getActiveWoundPenalty(currentSplat);
+  const applyWound = woundToggle && woundToggle.checked && wound.penalty < 0;
+
+  const resultBox = document.getElementById('diceResultBox');
+  const outcomeEl = document.getElementById('diceOutcomeText');
+  const trayEl = document.getElementById('diceTray');
+  const charName = (document.getElementById(currentSplat + '_char_name')?.value || '').trim();
+  const prefix = charName ? `${charName} — ` : '';
+
+  resultBox.style.display = 'block';
+
+  if (applyWound && wound.incapacitated) {
+    const outcomeLabel = 'Incapacitated (Cannot Act)';
+    outcomeEl.textContent = outcomeLabel;
+    outcomeEl.className = 'dice-outcome outcome-botch';
+    trayEl.innerHTML = '<span style="font-size:11px; color:#888;">Incapacitated — cannot roll Initiative</span>';
+    const summary = `${prefix}Initiative: ${outcomeLabel}`;
+    lastRollClipboardText = summary;
+    diceRollHistory.unshift({ traitDesc: 'Initiative', outcomeLabel, outcomeClass: 'outcome-botch', summary });
+    if (diceRollHistory.length > 8) diceRollHistory.pop();
+    renderRollHistory();
+    return;
+  }
+
+  const die = rollSingleD10();
+  const woundMod = applyWound ? wound.penalty : 0;
+  const total = die + dex + wit + woundMod;
+
+  const parts = [`d10: ${die}`, `Dex ${dex}`, `Wits ${wit}`];
+  if (woundMod < 0) parts.push(`Wound ${woundMod}`);
+  const breakdown = parts.join(' + ').replace('+ Wound -', '- Wound ');
+
+  const outcomeLabel = `Initiative: ${total}`;
+  const outcomeClass = die === 10 ? 'outcome-phenomenal' : (die === 1 ? 'outcome-fail' : 'outcome-success');
+  outcomeEl.textContent = outcomeLabel;
+  outcomeEl.className = 'dice-outcome ' + outcomeClass;
+
+  const dieCls = die === 10 ? 'die-ten' : (die === 1 ? 'die-one' : 'die-success');
+  trayEl.innerHTML = `<span class="die-badge ${dieCls}">${die}</span><span style="font-size:11.5px; color:#bbb; align-self:center; margin-left:4px;">(${breakdown})</span>`;
+
+  const modStr = woundMod < 0 ? `, Wound ${woundMod}` : '';
+  const summary = `${prefix}Initiative (1d10 + Dex ${dex} + Wits ${wit}${modStr}): [${die}] → ${total}`;
+  lastRollClipboardText = summary;
+  diceRollHistory.unshift({
+    traitDesc: 'Initiative',
+    outcomeLabel: `${total} (${breakdown})`,
+    outcomeClass,
+    summary
+  });
+  if (diceRollHistory.length > 8) diceRollHistory.pop();
+  renderRollHistory();
+}
+
 function renderRollHistory() {
   const wrap = document.getElementById('diceHistoryWrap');
   const list = document.getElementById('diceHistoryList');
@@ -3051,6 +3283,8 @@ function bindDiceRoller() {
   });
   document.getElementById('spendWpBoxBtn').addEventListener('click', spendOneWillpowerBox);
   document.getElementById('rollDiceBtn').addEventListener('click', executeWodRoll);
+  const initBtn = document.getElementById('rollInitiativeBtn');
+  if (initBtn) initBtn.addEventListener('click', executeInitiativeRoll);
 
   document.getElementById('copyLastRollBtn').addEventListener('click', () => {
     if (lastRollClipboardText && navigator.clipboard) {

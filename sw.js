@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wod20-sheet-cache-v22';
+const CACHE_NAME = 'wod20-sheet-cache-v30';
 const CORE_ASSETS = [
   './',
   './index.html'
