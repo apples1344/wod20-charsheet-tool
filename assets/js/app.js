@@ -615,7 +615,8 @@ function bindDragAndDrop() {
 
 function syncAppBarOffset() {
   const appBar = document.querySelector('.app-bar');
-  const height = appBar ? appBar.offsetHeight : 56;
+  const isSticky = appBar && window.getComputedStyle(appBar).position === 'sticky';
+  const height = isSticky ? appBar.offsetHeight : 0;
   document.documentElement.style.setProperty('--app-bar-height', `${height}px`);
   return height;
 }
