@@ -1,17 +1,29 @@
 import { SAMPLE_CHARACTERS } from './sampleCharacters.js';
 
 const STORAGE_KEY = 'wod_1to1_sheet_v3';
+const THEME_STORAGE_KEY = 'wod_sheet_theme_v1';
 const SHARE_DOMAIN_PLACEHOLDER = 'https://wod20-charsheet-tool.vercel.app/';
 const DEFAULT_MF_ROWS = 5;
 const DEFAULT_COMBAT_ROWS = 6;
+const SPLAT_DISPLAY_NAMES = {
+  mortal: 'Mortal / Hunter',
+  vampire: 'Vampire (V20)',
+  werewolf: 'Werewolf (W20)',
+  mage: 'Mage (M20)',
+  changeling: 'Changeling (C20)',
+  wraith: 'Wraith (Wr20)'
+};
 let lastSharedSnapshot = '';
 let isTenDotMode = false;
+let currentTheme = 'dark';
 let isRestoring = false;
 let isSheetDirty = false;
 let pendingSampleKey = '';
 let autoSaveTimer = null;
 let resizeTimer = null;
 let currentSplat = 'mortal';
+let activeSlotId = null;
+let rosterDeleteConfirmId = null;
 
 const HEALTH_STATES = ['empty', 'bashing', 'lethal', 'aggravated'];
 const HEALTH_SYMBOLS = { empty: '', bashing: '/', lethal: 'X', aggravated: '*' };
@@ -29,10 +41,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('textarea.sheet-area').forEach(ta => {
     ta.dataset.defaultHeight = ta.style.height || '';
   });
+  restoreSavedTheme();
   syncAppBarOffset();
   initDotsAndBoxes();
   initHealthBoxes();
   bindControls();
+  bindRosterControls();
   bindDragAndDrop();
   bindGuide();
   bindDiceRoller();
@@ -43,10 +57,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!loaded) {
     restoreFromLocalStorage();
   } else {
+    const importedState = captureCurrentState();
+    const store = loadGlobalStore();
+    const slot = createSlotRecord(importedState);
+    store.roster.push(slot);
+    store.activeSplat = currentSplat;
+    store.activeSlotId = slot.id;
+    activeSlotId = slot.id;
+    saveGlobalStore(store);
     isRestoring = true;
     switchSplat(currentSplat);
     isRestoring = false;
-    scheduleAutoSave();
+    renderRosterUI();
   }
   isSheetDirty = false;
 });
@@ -68,6 +90,11 @@ function bindControls() {
       const clearModal = document.getElementById('clearModal');
       if (clearModal && clearModal.style.display !== 'none') {
         clearModal.style.display = 'none';
+        return;
+      }
+      const rosterModal = document.getElementById('rosterModal');
+      if (rosterModal && rosterModal.style.display !== 'none') {
+        closeRosterModal();
         return;
       }
       const sampleModal = document.getElementById('sampleConfirmModal');
@@ -114,8 +141,7 @@ function bindControls() {
   document.getElementById('splatSelect').addEventListener('change', (e) => {
     flushAutoSave();
     document.getElementById('sampleCharSelect').value = '';
-    switchSplat(e.target.value);
-    isSheetDirty = false;
+    handleSplatDropdownChange(e.target.value);
   });
 
   // Sample Character Selection with Overwrite Guard
@@ -151,6 +177,13 @@ function bindControls() {
     isSheetDirty = true;
     scheduleAutoSave();
   });
+
+  const themeBtn = document.getElementById('themeToggleBtn');
+  if (themeBtn) {
+    themeBtn.addEventListener('click', () => {
+      applyTheme(currentTheme === 'parchment' ? 'dark' : 'parchment', true);
+    });
+  }
 
   document.getElementById('resetSheetBtn').addEventListener('click', () => {
     document.getElementById('clearModal').style.display = 'flex';
@@ -688,8 +721,11 @@ function loadSampleCharacter(key) {
   const sample = SAMPLE_CHARACTERS[key];
   if (!sample) return;
 
-  clearTimeout(autoSaveTimer);
-  autoSaveTimer = null;
+  flushAutoSave();
+  const reuseBlankSlot = !hasActiveSheetData();
+  if (!reuseBlankSlot) {
+    activeSlotId = generateSlotId();
+  }
 
   isRestoring = true;
   clearSheet(true, sample.splat);
@@ -742,27 +778,6 @@ function switchSplat(splat) {
     updateActiveQuickNav();
     updateGuidePanel();
     requestAnimationFrame(() => autoResizeTextareas(active));
-  }
-
-  if (!isRestoring) {
-    isRestoring = true;
-    let restored = false;
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const globalState = JSON.parse(saved);
-        if (globalState.sheets && globalState.sheets[splat]) {
-          restoreState(globalState.sheets[splat]);
-          restored = true;
-        }
-      }
-    } catch (e) {}
-    if (!restored) {
-      resetTenDotModeUI();
-      clearSheet(true, splat);
-    }
-    isRestoring = false;
-    saveNow();
   }
 }
 
@@ -1045,15 +1060,491 @@ function clearSheet(silent = false, targetSplat = currentSplat) {
   if (!silent) saveNow();
 }
 
+function applyTheme(theme, persist = false) {
+  currentTheme = theme === 'parchment' ? 'parchment' : 'dark';
+  if (currentTheme === 'parchment') {
+    document.body.dataset.theme = 'parchment';
+  } else {
+    delete document.body.dataset.theme;
+  }
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) {
+    btn.textContent = currentTheme === 'parchment' ? 'Dark Theme' : 'Parchment Theme';
+  }
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) {
+    metaTheme.setAttribute('content', currentTheme === 'parchment' ? '#ece3d0' : '#8b0000');
+  }
+  if (persist) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, currentTheme);
+    } catch (e) {}
+  }
+}
+
+function restoreSavedTheme() {
+  try {
+    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    applyTheme(savedTheme === 'parchment' ? 'parchment' : 'dark', false);
+  } catch (e) {
+    applyTheme('dark', false);
+  }
+}
+
+function generateSlotId() {
+  return 'slot_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+}
+
+function extractSlotMeta(state) {
+  const sp = (state && state.splat) || 'mortal';
+  const inp = (state && state.inputs) || {};
+  const rawName = (inp[`${sp}_char_name`] || '').trim();
+  const name = rawName || 'Unnamed Character';
+
+  let subtitle = '';
+  if (sp === 'mortal') {
+    subtitle = (inp.mortal_char_concept || inp.mortal_char_occupation || '').trim();
+  } else if (sp === 'vampire') {
+    const clan = (inp.vampire_char_clan || '').trim();
+    const gen = (inp.vampire_char_gen || '').trim();
+    subtitle = [clan, gen].filter(Boolean).join(' · ');
+  } else if (sp === 'werewolf') {
+    const tribe = (inp.werewolf_char_tribe || '').trim();
+    const auspice = (inp.werewolf_char_auspice || '').trim();
+    subtitle = [tribe, auspice].filter(Boolean).join(' · ');
+  } else if (sp === 'mage') {
+    subtitle = (inp.mage_char_affiliation || inp.mage_char_sect || '').trim();
+  } else if (sp === 'changeling') {
+    const kith = (inp.changeling_char_kith || '').trim();
+    const court = (inp.changeling_char_court || '').trim();
+    subtitle = [kith, court].filter(Boolean).join(' · ');
+  } else if (sp === 'wraith') {
+    subtitle = (inp.wraith_char_shadow || inp.wraith_char_life || '').trim();
+  }
+  return { splat: sp, name, subtitle };
+}
+
+function createSlotRecord(state, overrideId = null) {
+  const meta = extractSlotMeta(state);
+  return {
+    id: overrideId || generateSlotId(),
+    splat: meta.splat,
+    name: meta.name,
+    subtitle: meta.subtitle,
+    updatedAt: Date.now(),
+    state: JSON.parse(JSON.stringify(state))
+  };
+}
+
+function stateHasAnyData(st) {
+  if (!st) return false;
+  if (st.inputs && Object.values(st.inputs).some(v => typeof v === 'string' && v.trim().length > 0)) return true;
+  if (st.health && Object.values(st.health).some(v => v && v !== 'empty')) return true;
+  if (st.dots) {
+    const sp = st.splat || 'mortal';
+    for (const [k, v] of Object.entries(st.dots)) {
+      const isBaseAttr = k.startsWith(`${sp}_attr_`);
+      if (v > (isBaseAttr ? 1 : 0)) return true;
+    }
+  }
+  return false;
+}
+
+function loadGlobalStore() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { activeSplat: 'mortal', activeSlotId: null, roster: [] };
+    const parsed = JSON.parse(raw);
+
+    if (Array.isArray(parsed.roster)) {
+      return {
+        activeSplat: parsed.activeSplat || 'mortal',
+        activeSlotId: parsed.activeSlotId || (parsed.roster[0] ? parsed.roster[0].id : null),
+        roster: parsed.roster
+      };
+    }
+
+    // Migrate legacy single-sheet-per-splat format into Multi-Character Roster
+    if (parsed.sheets && typeof parsed.sheets === 'object') {
+      const migratedRoster = [];
+      let migratedActiveId = null;
+      const preferredSplat = parsed.activeSplat || 'mortal';
+
+      for (const sp of V3_SPLATS) {
+        const legacySheet = parsed.sheets[sp];
+        if (legacySheet && (stateHasAnyData(legacySheet) || sp === preferredSplat)) {
+          const slot = createSlotRecord(legacySheet);
+          migratedRoster.push(slot);
+          if (sp === preferredSplat) migratedActiveId = slot.id;
+        }
+      }
+      if (!migratedActiveId && migratedRoster.length > 0) {
+        migratedActiveId = migratedRoster[0].id;
+      }
+      const migratedStore = {
+        activeSplat: preferredSplat,
+        activeSlotId: migratedActiveId,
+        roster: migratedRoster
+      };
+      saveGlobalStore(migratedStore);
+      return migratedStore;
+    }
+  } catch (e) {}
+  return { activeSplat: 'mortal', activeSlotId: null, roster: [] };
+}
+
+function saveGlobalStore(store) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  } catch (e) {
+    showToast('Storage limit reached — export JSON backup');
+  }
+}
+
+function formatSlotTimestamp(ts) {
+  if (!ts) return '';
+  try {
+    const d = new Date(ts);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' +
+      d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return '';
+  }
+}
+
+function renderRosterUI() {
+  const store = loadGlobalStore();
+  const select = document.getElementById('rosterSelect');
+  if (select) {
+    select.innerHTML = '';
+    V3_SPLATS.forEach(sp => {
+      const slots = store.roster.filter(s => s.splat === sp);
+      if (!slots.length) return;
+      const og = document.createElement('optgroup');
+      og.label = SPLAT_DISPLAY_NAMES[sp] || sp;
+      slots.forEach(slot => {
+        const opt = document.createElement('option');
+        opt.value = slot.id;
+        opt.textContent = slot.subtitle ? `${slot.name} (${slot.subtitle})` : slot.name;
+        if (slot.id === activeSlotId) opt.selected = true;
+        og.appendChild(opt);
+      });
+      select.appendChild(og);
+    });
+    if (activeSlotId) select.value = activeSlotId;
+  }
+
+  const listEl = document.getElementById('rosterSlotList');
+  if (!listEl) return;
+
+  if (!store.roster.length) {
+    listEl.innerHTML = '<p style="color:#9e9e9e; font-size:12px; text-align:center; padding:16px 0;">No saved character slots yet.</p>';
+    return;
+  }
+
+  const sorted = [...store.roster].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  listEl.innerHTML = sorted.map(slot => {
+    const isActive = slot.id === activeSlotId;
+    const isConfirmDel = slot.id === rosterDeleteConfirmId;
+    const splatName = SPLAT_DISPLAY_NAMES[slot.splat] || slot.splat;
+    const metaParts = [slot.subtitle, formatSlotTimestamp(slot.updatedAt)].filter(Boolean).join(' · ');
+    return `
+      <div class="roster-slot-card${isActive ? ' active' : ''}" data-slot-id="${escapeHtmlForDice(slot.id)}">
+        <div class="roster-slot-info">
+          <div class="roster-slot-title-row">
+            <span class="roster-slot-name">${escapeHtmlForDice(slot.name || 'Unnamed Character')}</span>
+            <span class="roster-splat-pill">${escapeHtmlForDice(splatName)}</span>
+            ${isActive ? '<span class="roster-active-pill">Active</span>' : ''}
+          </div>
+          <div class="roster-slot-meta">${escapeHtmlForDice(metaParts || 'Blank sheet')}</div>
+        </div>
+        <div class="roster-slot-actions">
+          ${!isActive ? `<button type="button" class="btn btn-sm btn-accent roster-open-btn" data-id="${escapeHtmlForDice(slot.id)}">Open</button>` : ''}
+          <button type="button" class="btn btn-sm roster-rename-btn" data-id="${escapeHtmlForDice(slot.id)}" title="Rename slot">Rename</button>
+          <button type="button" class="btn btn-sm roster-dup-btn" data-id="${escapeHtmlForDice(slot.id)}" title="Duplicate slot">Copy</button>
+          <button type="button" class="btn btn-sm btn-danger roster-del-btn" data-id="${escapeHtmlForDice(slot.id)}" title="Delete slot">${isConfirmDel ? 'Confirm?' : '&times;'}</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function switchToRosterSlot(slotId) {
+  if (!slotId) return;
+  flushAutoSave();
+  const store = loadGlobalStore();
+  const slot = store.roster.find(s => s.id === slotId);
+  if (!slot) return;
+
+  activeSlotId = slot.id;
+  store.activeSlotId = slot.id;
+  store.activeSplat = slot.splat;
+  saveGlobalStore(store);
+
+  document.getElementById('sampleCharSelect').value = '';
+  isRestoring = true;
+  clearSheet(true, slot.splat);
+  restoreState(slot.state);
+  switchSplat(slot.splat);
+  isRestoring = false;
+  isSheetDirty = false;
+  rosterDeleteConfirmId = null;
+
+  renderRosterUI();
+  showToast(`Loaded: ${slot.name}`);
+}
+
+function createNewRosterSlot(targetSplat = currentSplat, initialState = null, toastMsg = 'Created New Character Slot') {
+  flushAutoSave();
+  const newId = generateSlotId();
+  activeSlotId = newId;
+  document.getElementById('sampleCharSelect').value = '';
+
+  isRestoring = true;
+  clearSheet(true, targetSplat);
+  if (initialState) {
+    restoreState(initialState);
+  }
+  switchSplat(targetSplat);
+  isRestoring = false;
+  isSheetDirty = false;
+  rosterDeleteConfirmId = null;
+
+  saveNow();
+  if (toastMsg) showToast(toastMsg);
+}
+
+function handleSplatDropdownChange(targetSplat) {
+  if (!hasActiveSheetData()) {
+    isRestoring = true;
+    clearSheet(true, targetSplat);
+    switchSplat(targetSplat);
+    isRestoring = false;
+    isSheetDirty = false;
+    saveNow();
+    return;
+  }
+  const store = loadGlobalStore();
+  const existingForSplat = store.roster
+    .filter(s => s.splat === targetSplat)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+
+  if (existingForSplat) {
+    switchToRosterSlot(existingForSplat.id);
+  } else {
+    createNewRosterSlot(targetSplat, null, `New ${SPLAT_DISPLAY_NAMES[targetSplat] || targetSplat} Slot`);
+  }
+}
+
+function openRosterModal() {
+  flushAutoSave();
+  rosterDeleteConfirmId = null;
+  const newSplatSel = document.getElementById('rosterNewSplatSelect');
+  if (newSplatSel) newSplatSel.value = currentSplat;
+  renderRosterUI();
+  const modal = document.getElementById('rosterModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeRosterModal() {
+  rosterDeleteConfirmId = null;
+  const modal = document.getElementById('rosterModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function bindRosterControls() {
+  const rosterSelect = document.getElementById('rosterSelect');
+  if (rosterSelect) {
+    rosterSelect.addEventListener('change', (e) => {
+      if (e.target.value) switchToRosterSlot(e.target.value);
+    });
+  }
+
+  const newSlotBtn = document.getElementById('newRosterSlotBtn');
+  if (newSlotBtn) {
+    newSlotBtn.addEventListener('click', () => {
+      createNewRosterSlot(currentSplat, null, `New ${SPLAT_DISPLAY_NAMES[currentSplat] || currentSplat} Slot`);
+    });
+  }
+
+  const manageBtn = document.getElementById('manageRosterBtn');
+  if (manageBtn) manageBtn.addEventListener('click', openRosterModal);
+
+  const closeBtn = document.getElementById('closeRosterModalBtn');
+  if (closeBtn) closeBtn.addEventListener('click', closeRosterModal);
+
+  const doneBtn = document.getElementById('doneRosterModalBtn');
+  if (doneBtn) doneBtn.addEventListener('click', closeRosterModal);
+
+  const modalNewBtn = document.getElementById('rosterModalNewBtn');
+  if (modalNewBtn) {
+    modalNewBtn.addEventListener('click', () => {
+      const sel = document.getElementById('rosterNewSplatSelect');
+      const sp = sel ? sel.value : currentSplat;
+      createNewRosterSlot(sp, null, `New ${SPLAT_DISPLAY_NAMES[sp] || sp} Slot`);
+      closeRosterModal();
+    });
+  }
+
+  const slotList = document.getElementById('rosterSlotList');
+  if (slotList) {
+    slotList.addEventListener('click', (e) => {
+      const openBtn = e.target.closest('.roster-open-btn');
+      if (openBtn) {
+        switchToRosterSlot(openBtn.dataset.id);
+        closeRosterModal();
+        return;
+      }
+
+      const dupBtn = e.target.closest('.roster-dup-btn');
+      if (dupBtn) {
+        const store = loadGlobalStore();
+        const orig = store.roster.find(s => s.id === dupBtn.dataset.id);
+        if (!orig) return;
+        const clonedState = JSON.parse(JSON.stringify(orig.state));
+        const nameField = `${orig.splat}_char_name`;
+        if (clonedState.inputs) {
+          const baseName = (clonedState.inputs[nameField] || orig.name || 'Unnamed Character').trim();
+          clonedState.inputs[nameField] = `${baseName} (Copy)`;
+        }
+        createNewRosterSlot(orig.splat, clonedState, `Duplicated: ${orig.name}`);
+        renderRosterUI();
+        return;
+      }
+
+      const renameBtn = e.target.closest('.roster-rename-btn');
+      if (renameBtn) {
+        const card = renameBtn.closest('.roster-slot-card');
+        const titleRow = card ? card.querySelector('.roster-slot-title-row') : null;
+        const store = loadGlobalStore();
+        const target = store.roster.find(s => s.id === renameBtn.dataset.id);
+        if (!titleRow || !target) return;
+
+        titleRow.innerHTML = `
+          <input type="text" class="roster-rename-input" value="${escapeHtmlForDice(target.name)}" aria-label="Character Name">
+          <button type="button" class="btn btn-sm btn-accent roster-save-name-btn" data-id="${escapeHtmlForDice(target.id)}">Save</button>
+        `;
+        const inp = titleRow.querySelector('.roster-rename-input');
+        if (inp) {
+          inp.focus();
+          inp.select();
+          inp.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') {
+              ev.preventDefault();
+              titleRow.querySelector('.roster-save-name-btn')?.click();
+            }
+          });
+        }
+        return;
+      }
+
+      const saveNameBtn = e.target.closest('.roster-save-name-btn');
+      if (saveNameBtn) {
+        const card = saveNameBtn.closest('.roster-slot-card');
+        const inp = card ? card.querySelector('.roster-rename-input') : null;
+        const newName = inp ? inp.value.trim() : '';
+        const store = loadGlobalStore();
+        const target = store.roster.find(s => s.id === saveNameBtn.dataset.id);
+        if (target && newName) {
+          target.name = newName;
+          target.updatedAt = Date.now();
+          if (target.state && target.state.inputs) {
+            target.state.inputs[`${target.splat}_char_name`] = newName;
+          }
+          saveGlobalStore(store);
+          if (target.id === activeSlotId) {
+            const sheetNameInp = document.getElementById(`${target.splat}_char_name`);
+            if (sheetNameInp) sheetNameInp.value = newName;
+            updateDocumentTitle();
+          }
+          showToast(`Renamed to: ${newName}`);
+        }
+        renderRosterUI();
+        return;
+      }
+
+      const delBtn = e.target.closest('.roster-del-btn');
+      if (delBtn) {
+        const id = delBtn.dataset.id;
+        if (rosterDeleteConfirmId !== id) {
+          rosterDeleteConfirmId = id;
+          renderRosterUI();
+          return;
+        }
+        rosterDeleteConfirmId = null;
+        const store = loadGlobalStore();
+        const idx = store.roster.findIndex(s => s.id === id);
+        if (idx === -1) return;
+        const deletedName = store.roster[idx].name;
+        store.roster.splice(idx, 1);
+
+        if (store.roster.length === 0) {
+          saveGlobalStore(store);
+          activeSlotId = null;
+          createNewRosterSlot('mortal', null, `Deleted ${deletedName}`);
+          renderRosterUI();
+          return;
+        }
+
+        if (id === activeSlotId) {
+          const nextSlot = [...store.roster].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+          saveGlobalStore(store);
+          switchToRosterSlot(nextSlot.id);
+        } else {
+          saveGlobalStore(store);
+          renderRosterUI();
+        }
+        showToast(`Deleted: ${deletedName}`);
+      }
+    });
+  }
+
+  const exportRosterBtn = document.getElementById('exportRosterBtn');
+  if (exportRosterBtn) {
+    exportRosterBtn.addEventListener('click', () => {
+      flushAutoSave();
+      const store = loadGlobalStore();
+      const payload = {
+        type: 'wod20_roster_backup',
+        exportedAt: new Date().toISOString(),
+        roster: store.roster
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'wod20_roster_backup.json';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast(`Exported ${store.roster.length} Character(s)`);
+    });
+  }
+
+  const importRosterBtn = document.getElementById('importRosterBtn');
+  const rosterImportInput = document.getElementById('rosterImportInput');
+  if (importRosterBtn && rosterImportInput) {
+    importRosterBtn.addEventListener('click', () => rosterImportInput.click());
+    rosterImportInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) importJsonFile(file, true);
+      e.target.value = '';
+    });
+  }
+}
+
 function hardResetWebsite() {
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
 
   try {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(THEME_STORAGE_KEY);
   } catch (e) {}
 
+  applyTheme('dark', false);
   lastSharedSnapshot = '';
+  activeSlotId = null;
+  rosterDeleteConfirmId = null;
   const pdfLink = document.getElementById('pdfShareLink');
   if (pdfLink) pdfLink.href = getPdfShareBaseUrl();
   if (window.location.hash) {
@@ -1063,6 +1554,7 @@ function hardResetWebsite() {
   document.getElementById('sampleCharSelect').value = '';
   pendingSampleKey = '';
   resetTenDotModeUI();
+  closeRosterModal();
 
   const guidePanel = document.getElementById('guidePanel');
   if (guidePanel) guidePanel.classList.remove('open');
@@ -1074,6 +1566,7 @@ function hardResetWebsite() {
   switchSplat('mortal');
   isRestoring = false;
   isSheetDirty = false;
+  saveNow();
 
   const badge = document.getElementById('autosaveIndicator');
   if (badge) {
@@ -1085,23 +1578,37 @@ function hardResetWebsite() {
   showToast('Website Reset to Defaults');
 }
 
-
 function saveNow() {
   if (isRestoring) return;
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   const badge = document.getElementById('autosaveIndicator');
-  let globalState = {};
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) globalState = JSON.parse(saved);
-  } catch (e) {}
-  globalState.activeSplat = currentSplat;
-  if (!globalState.sheets) globalState.sheets = {};
-  globalState.sheets[currentSplat] = captureCurrentState();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(globalState));
-  badge.textContent = 'Saved Locally';
-  badge.classList.add('saved');
+  const store = loadGlobalStore();
+  const currentState = captureCurrentState();
+  const meta = extractSlotMeta(currentState);
+
+  let slot = activeSlotId ? store.roster.find(s => s.id === activeSlotId) : null;
+  if (!slot) {
+    slot = createSlotRecord(currentState, activeSlotId);
+    store.roster.push(slot);
+    activeSlotId = slot.id;
+  } else {
+    slot.splat = meta.splat;
+    slot.name = meta.name;
+    slot.subtitle = meta.subtitle;
+    slot.updatedAt = Date.now();
+    slot.state = currentState;
+  }
+
+  store.activeSplat = currentSplat;
+  store.activeSlotId = activeSlotId;
+  saveGlobalStore(store);
+
+  renderRosterUI();
+  if (badge) {
+    badge.textContent = 'Saved Locally';
+    badge.classList.add('saved');
+  }
 }
 
 function flushAutoSave() {
@@ -1114,27 +1621,37 @@ function scheduleAutoSave() {
   if (isRestoring) return;
   clearTimeout(autoSaveTimer);
   const badge = document.getElementById('autosaveIndicator');
-  badge.textContent = 'Saving...';
-  badge.classList.remove('saved');
+  if (badge) {
+    badge.textContent = 'Saving...';
+    badge.classList.remove('saved');
+  }
   autoSaveTimer = setTimeout(() => {
     saveNow();
   }, 500);
 }
 
 function restoreFromLocalStorage() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const globalState = JSON.parse(saved);
-      if (globalState.activeSplat) currentSplat = globalState.activeSplat;
-      switchSplat(currentSplat);
-      document.getElementById('autosaveIndicator').textContent = 'Restored Session';
-      document.getElementById('autosaveIndicator').classList.add('saved');
-    } else {
-      switchSplat('mortal');
+  const store = loadGlobalStore();
+  if (store.roster.length > 0) {
+    const targetSlot = store.roster.find(s => s.id === store.activeSlotId) || store.roster[0];
+    activeSlotId = targetSlot.id;
+    isRestoring = true;
+    clearSheet(true, targetSlot.splat);
+    restoreState(targetSlot.state);
+    switchSplat(targetSlot.splat);
+    isRestoring = false;
+    renderRosterUI();
+    const badge = document.getElementById('autosaveIndicator');
+    if (badge) {
+      badge.textContent = 'Restored Session';
+      badge.classList.add('saved');
     }
-  } catch (e) {
+  } else {
+    activeSlotId = generateSlotId();
+    isRestoring = true;
     switchSplat('mortal');
+    isRestoring = false;
+    saveNow();
   }
 }
 
@@ -1568,23 +2085,49 @@ function saveAsJson() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function importJsonFile(file) {
+function importJsonFile(file, fromRosterModal = false) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = (evt) => {
     try {
-      const state = JSON.parse(evt.target.result);
-      clearTimeout(autoSaveTimer);
-      autoSaveTimer = null;
+      const parsed = JSON.parse(evt.target.result);
+      flushAutoSave();
+
+      // Multi-character roster backup import
+      if (parsed && parsed.type === 'wod20_roster_backup' && Array.isArray(parsed.roster)) {
+        const validSlots = parsed.roster.filter(s => s && s.state && s.state.splat);
+        if (!validSlots.length) {
+          showToast('No valid character slots in backup');
+          return;
+        }
+        const store = loadGlobalStore();
+        const imported = validSlots.map(s => createSlotRecord(s.state));
+        store.roster.push(...imported);
+        saveGlobalStore(store);
+        switchToRosterSlot(imported[0].id);
+        if (fromRosterModal) renderRosterUI();
+        showToast(`Imported ${imported.length} Character(s)`);
+        return;
+      }
+
+      // Single character JSON import
+      if (!parsed || !parsed.splat) {
+        showToast('Invalid JSON');
+        return;
+      }
+      if (hasActiveSheetData()) {
+        activeSlotId = generateSlotId();
+      }
       document.getElementById('sampleCharSelect').value = '';
       isRestoring = true;
-      clearSheet(true, state.splat || currentSplat);
-      restoreState(state);
-      switchSplat(state.splat || currentSplat);
+      clearSheet(true, parsed.splat || currentSplat);
+      restoreState(parsed);
+      switchSplat(parsed.splat || currentSplat);
       isRestoring = false;
       isSheetDirty = false;
       saveNow();
-      showToast('Loaded JSON successfully');
+      if (fromRosterModal) renderRosterUI();
+      showToast('Loaded JSON into Roster');
     } catch (err) {
       showToast('Invalid JSON');
     }
