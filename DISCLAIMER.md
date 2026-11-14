@@ -17,5 +17,5 @@ To the extent the creator holds any rights in the original HTML, CSS, and JavaSc
 
 ## 3. Zero Responsibility, Maintenance, or Liability
 THIS PROJECT IS PROVIDED STRICTLY "AS IS", WITHOUT WARRANTY OF ANY KIND.
-- **No Updates or Support:** This is an abandoned/hobbyist release. The creator has zero obligation to update, fix, maintain, or support this project.
+- **No Updates or Support:** This is a hobbyist release. The creator has zero obligation to update, fix, maintain, or support this project.
 - **No Liability:** The creator assumes zero responsibility or liability for any damages, data loss, IP disputes, takedown notices, or legal claims arising from the use, hosting, copying, or modification of this project by any third party.
