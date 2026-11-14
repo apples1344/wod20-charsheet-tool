@@ -142,18 +142,25 @@ select optgroup { background: #111; color: #e6b800; font-style: normal; font-wei
 .row { display: flex; gap: 15px; margin-bottom: 15px; width:100%; }
 .col { flex: 1; min-width: 0; }
 
-/* Subtle Column & Identity Grouping */
+/* Unified Card Containers & Subtle Neutral Greyish Hover Highlight */
 .splat-container > .wod-header + .row,
 .col:has(> .sub-col-title),
-.col:has(> .adv-sub-header) {
-  background: rgba(255, 255, 255, 0.022);
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  border-radius: 7px;
-  padding: 10px 12px;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+.col:has(> .section-header-flex),
+.col:has(> .section-title-sm),
+.sheet-card-block {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
 }
 .splat-container > .wod-header + .row {
-  padding: 11px 14px;
+  padding: 12px 15px;
+}
+.col:has(> .section-header-flex) > .sheet-table:last-child,
+.sheet-card-block > .sheet-table:last-child {
+  margin-bottom: 0;
 }
 
 .section-header-flex.adv-sub-header {
@@ -174,11 +181,13 @@ select optgroup { background: #111; color: #e6b800; font-style: normal; font-wei
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 12px;
-  padding: 8px 12px;
+  padding: 9px 14px;
   margin-bottom: 14px;
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid rgba(255, 255, 255, 0.085);
-  border-radius: 7px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
 }
 .shift-bar-left {
   display: flex;
@@ -438,10 +447,23 @@ body.mode-10-dot .col:has([data-id^="vampire_adv_2_"]) .dots-container {
 .pool-box {
   display: flex; flex-direction: column; align-items: center; text-align: center;
   width: 100%; border-radius: 10px;
-  padding: 12px 14px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  background: rgba(255, 255, 255, 0.022);
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  padding: 12px 14px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+.splat-container > .wod-header + .row:hover,
+.werewolf-shift-bar:hover,
+.col:has(> .sub-col-title):hover,
+.col:has(> .section-header-flex):hover,
+.col:has(> .section-title-sm):hover,
+.sheet-card-block:hover,
+.pool-box:hover,
+.armor-block:hover,
+.wraith-shadow-block:hover {
+  border-color: rgba(255, 255, 255, 0.24);
+  background-color: rgba(255, 255, 255, 0.068);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.36);
 }
 
 .pool-box .dots-container, .pool-box .boxes-container { padding-left: 0; justify-content: center; }
@@ -585,8 +607,25 @@ body.mode-10-dot .col:has([data-id^="vampire_adv_2_"]) .dots-container {
 .combat-table th:nth-child(2), .combat-table th:nth-child(n+4):not(.no-print),
 .combat-table td:nth-child(2) input, .combat-table td:nth-child(n+4):not(.td-action) input { text-align: center; }
 
-.armor-block { border: 1px solid #444; border-radius: 6px; padding: 10px 12px; margin-top: 10px; background: #232323; }
-.wraith-shadow-block { background: #141414; color: #e0e0e0; border: 1px solid #444; border-radius: 6px; padding: 14px; margin-top: 15px; }
+.armor-block {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+.wraith-shadow-block {
+  background: rgba(0, 0, 0, 0.22);
+  color: #e0e0e0;
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  border-radius: 10px;
+  padding: 14px;
+  margin-top: 15px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.24);
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
 .wraith-shadow-block .section-title-sm { border-bottom-color: #666; color: #fff; }
 .wraith-shadow-block .text-label { color: #aaa; }
 textarea.sheet-area {
@@ -865,9 +904,11 @@ textarea.sheet-area:focus {
 
   .splat-container > .wod-header + .row,
   .col:has(> .sub-col-title),
-  .col:has(> .adv-sub-header) {
+  .col:has(> .section-header-flex),
+  .col:has(> .section-title-sm),
+  .sheet-card-block {
     background: transparent !important; border: none !important;
-    border-radius: 0 !important; padding: 0 !important;
+    border-radius: 0 !important; padding: 0 !important; box-shadow: none !important;
   }
   .sub-col-title {
     border-bottom: none !important; padding-bottom: 0 !important;
@@ -1188,9 +1229,25 @@ body[data-theme="parchment"] .sheet-wrapper {
 }
 body[data-theme="parchment"] .splat-container > .wod-header + .row,
 body[data-theme="parchment"] .col:has(> .sub-col-title),
-body[data-theme="parchment"] .col:has(> .adv-sub-header) {
+body[data-theme="parchment"] .col:has(> .section-header-flex),
+body[data-theme="parchment"] .col:has(> .section-title-sm),
+body[data-theme="parchment"] .sheet-card-block {
   background: rgba(110, 88, 52, 0.055);
   border-color: #cfc3ab;
+  box-shadow: 0 2px 8px rgba(52, 39, 20, 0.06);
+}
+body[data-theme="parchment"] .splat-container > .wod-header + .row:hover,
+body[data-theme="parchment"] .werewolf-shift-bar:hover,
+body[data-theme="parchment"] .col:has(> .sub-col-title):hover,
+body[data-theme="parchment"] .col:has(> .section-header-flex):hover,
+body[data-theme="parchment"] .col:has(> .section-title-sm):hover,
+body[data-theme="parchment"] .sheet-card-block:hover,
+body[data-theme="parchment"] .pool-box:hover,
+body[data-theme="parchment"] .armor-block:hover,
+body[data-theme="parchment"] .wraith-shadow-block:hover {
+  border-color: #96866a;
+  background-color: rgba(110, 88, 52, 0.125);
+  box-shadow: 0 6px 18px rgba(52, 39, 20, 0.13);
 }
 
 body[data-theme="parchment"] .sub-col-title,
@@ -1373,8 +1430,9 @@ body[data-theme="parchment"] .field-input-dotted:focus,
 body[data-theme="parchment"] .field-input-solid:focus { background: rgba(255, 255, 255, 0.4); }
 body[data-theme="parchment"] .health-table tr:hover td { background: rgba(110, 88, 52, 0.06); }
 body[data-theme="parchment"] .armor-block {
-  background: #ede4d1;
-  border-color: #bfb197;
+  background: rgba(110, 88, 52, 0.055);
+  border-color: #cfc3ab;
+  box-shadow: 0 2px 8px rgba(52, 39, 20, 0.06);
 }
 body[data-theme="parchment"] .wraith-shadow-block {
   background: #e8dec9;
@@ -1718,7 +1776,10 @@ body.mode-compact .sub-col-title { font-size: 11.5px; margin-bottom: 5px; paddin
 body.mode-compact .row { gap: 10px; margin-bottom: 9px; }
 body.mode-compact .splat-container > .wod-header + .row,
 body.mode-compact .col:has(> .sub-col-title),
-body.mode-compact .col:has(> .adv-sub-header) {
+body.mode-compact .col:has(> .section-header-flex),
+body.mode-compact .col:has(> .section-title-sm),
+body.mode-compact .sheet-card-block,
+body.mode-compact .armor-block {
   padding: 7px 9px;
 }
 body.mode-compact .text-row { margin-bottom: 3px; }
