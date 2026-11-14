@@ -114,6 +114,8 @@ body {
 .control-label { color: #999; font-size: 11.5px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
 .context-divider { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.1); margin: 0 4px; }
 .form-select { height: 30px; padding: 0 10px; background: rgba(255,255,255,0.04); font-size: 12.5px; }
+select option { background: #1e1e1e; color: #fff; }
+select optgroup { background: #111; color: #e6b800; font-style: normal; font-weight: bold; }
 .roster-controls { display: flex; gap: 4px; }
 .roster-select { max-width: 170px; text-overflow: ellipsis; }
 
@@ -645,6 +647,8 @@ body[data-theme="parchment"] .btn-accent { background: var(--accent-color); bord
 body[data-theme="parchment"] .btn-accent:hover { background: var(--accent-hover); }
 body[data-theme="parchment"] .control-label { color: #635542; }
 body[data-theme="parchment"] .context-divider { background: rgba(0,0,0,0.1); }
+body[data-theme="parchment"] select option { background: #f6f0e2; color: #241d15; }
+body[data-theme="parchment"] select optgroup { background: #e6dcc6; color: #6e3b00; }
 body[data-theme="parchment"] .dropdown-menu { background: #f6f0e2; border-color: #c4b79e; box-shadow: 0 10px 30px rgba(45, 34, 18, 0.25); }
 body[data-theme="parchment"] .dropdown-group { border-bottom-color: #e4d9c3; }
 body[data-theme="parchment"] .dropdown-header { color: #8c7d65; }
