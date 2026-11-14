@@ -687,29 +687,25 @@ function getTraitContextLabel(container) {
 
 function getPairedBoxContainers(container) {
   const id = container.dataset.id || '';
-  const match = id.match(/^(.+_sq)([12])$/);
+  const match = id.match(/^(.+_sq)([1234])$/);
   if (!match) return null;
   const scope = container.closest('.pool-box') || document;
   const row1 = scope.querySelector(`[data-id="${match[1]}1"]`);
   const row2 = scope.querySelector(`[data-id="${match[1]}2"]`);
+  const row3 = scope.querySelector(`[data-id="${match[1]}3"]`);
+  const row4 = scope.querySelector(`[data-id="${match[1]}4"]`);
   if (!row1 || !row2) return null;
-  return { row1, row2, rowNum: parseInt(match[2], 10) };
+  return { row1, row2, row3, row4, rowNum: parseInt(match[2], 10), baseId: match[1] };
 }
 
 function stepTemporaryBoxes(container, delta) {
   const paired = getPairedBoxContainers(container);
   if (paired) {
-    const v1 = parseInt(paired.row1.dataset.val || '0', 10);
-    const v2 = parseInt(paired.row2.dataset.val || '0', 10);
-    const currentTotal = v1 === 10 ? 10 + v2 : v1;
-    const nextTotal = Math.max(0, Math.min(20, currentTotal + delta));
+    const maxVal = paired.row4 ? 40 : 20;
+    let currentTotal = getPairedBoxTotal(paired.baseId);
+    const nextTotal = Math.max(0, Math.min(maxVal, currentTotal + delta));
     if (nextTotal === currentTotal) return;
-    const next1 = Math.min(10, nextTotal);
-    const next2 = Math.max(0, nextTotal - 10);
-    paired.row1.dataset.val = next1;
-    paired.row2.dataset.val = next2;
-    updateVisual(paired.row1, next1, 'square-box');
-    updateVisual(paired.row2, next2, 'square-box');
+    setPairedBoxTotal(paired.baseId, nextTotal);
   } else {
     const current = parseInt(container.dataset.val || '0', 10);
     const next = Math.max(0, Math.min(10, current + delta));
@@ -727,18 +723,13 @@ function bindDotContainer(container) {
   const childClass = isSquare ? 'square-box' : 'dot';
   const contextLabel = getTraitContextLabel(container);
   const paired = isSquare ? getPairedBoxContainers(container) : null;
-  const idxOffset = paired && paired.rowNum === 2 ? 10 : 0;
+  const idxOffset = paired ? (paired.rowNum - 1) * 10 : 0;
 
   container.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     if (paired) {
-      const v1 = parseInt(paired.row1.dataset.val || '0', 10);
-      const v2 = parseInt(paired.row2.dataset.val || '0', 10);
-      if (v1 === 0 && v2 === 0) return;
-      paired.row1.dataset.val = 0;
-      paired.row2.dataset.val = 0;
-      updateVisual(paired.row1, 0, childClass);
-      updateVisual(paired.row2, 0, childClass);
+      if (getPairedBoxTotal(paired.baseId) === 0) return;
+      setPairedBoxTotal(paired.baseId, 0);
     } else {
       const current = parseInt(container.dataset.val || '0', 10);
       if (current === 0) return;
@@ -757,13 +748,12 @@ function bindDotContainer(container) {
 
   const setHoverTrail = (hoverTotal) => {
     if (paired) {
-      paired.row1.querySelectorAll('.' + childClass).forEach(b => {
-        const idx = parseInt(b.dataset.idx, 10);
-        b.classList.toggle('hover-preview', hoverTotal > 0 && idx <= hoverTotal);
-      });
-      paired.row2.querySelectorAll('.' + childClass).forEach(b => {
-        const idx = parseInt(b.dataset.idx, 10) + 10;
-        b.classList.toggle('hover-preview', hoverTotal > 0 && idx <= hoverTotal);
+      const rows = [paired.row1, paired.row2, paired.row3, paired.row4].filter(Boolean);
+      rows.forEach((r, rIdx) => {
+        r.querySelectorAll('.' + childClass).forEach(b => {
+          const idx = parseInt(b.dataset.idx, 10) + (rIdx * 10);
+          b.classList.toggle('hover-preview', hoverTotal > 0 && idx <= hoverTotal);
+        });
       });
     } else {
       container.querySelectorAll('.' + childClass).forEach(b => {
@@ -783,17 +773,10 @@ function bindDotContainer(container) {
     el.addEventListener('mouseenter', () => setHoverTrail(displayIdx));
     const clickHandler = () => {
       if (paired) {
-        const v1 = parseInt(paired.row1.dataset.val || '0', 10);
-        const v2 = parseInt(paired.row2.dataset.val || '0', 10);
-        const currentTotal = v1 === 10 ? 10 + v2 : v1;
+        const currentTotal = getPairedBoxTotal(paired.baseId);
         const clickedTotal = displayIdx;
         const nextTotal = currentTotal === clickedTotal ? Math.max(0, clickedTotal - 1) : clickedTotal;
-        const next1 = Math.min(10, nextTotal);
-        const next2 = Math.max(0, nextTotal - 10);
-        paired.row1.dataset.val = next1;
-        paired.row2.dataset.val = next2;
-        updateVisual(paired.row1, next1, childClass);
-        updateVisual(paired.row2, next2, childClass);
+        setPairedBoxTotal(paired.baseId, nextTotal);
       } else {
         const current = parseInt(container.dataset.val || '0', 10);
         const next = current === rawIdx ? Math.max(0, rawIdx - 1) : rawIdx;
@@ -1091,10 +1074,13 @@ function switchSplat(splat) {
 function getPairedBoxTotal(baseSqId) {
   const row1 = document.querySelector(`.boxes-container[data-id="${baseSqId}1"]`);
   const row2 = document.querySelector(`.boxes-container[data-id="${baseSqId}2"]`);
+  const row3 = document.querySelector(`.boxes-container[data-id="${baseSqId}3"]`);
+  const row4 = document.querySelector(`.boxes-container[data-id="${baseSqId}4"]`);
   if (!row1 || !row2) return 0;
-  const v1 = parseInt(row1.dataset.val || '0', 10);
-  const v2 = parseInt(row2.dataset.val || '0', 10);
-  return v1 === 10 ? 10 + v2 : v1;
+  let t = parseInt(row1.dataset.val || '0', 10) + parseInt(row2.dataset.val || '0', 10);
+  if (row3) t += parseInt(row3.dataset.val || '0', 10);
+  if (row4) t += parseInt(row4.dataset.val || '0', 10);
+  return t;
 }
 
 function getVampireGenStats(rawGenStr) {
@@ -1211,10 +1197,8 @@ function updatePoolCounters(scope = document) {
     let currentTemp = 0;
     let defaultMax = 10;
     if (paired) {
-      const v1 = parseInt(paired.row1.dataset.val || '0', 10);
-      const v2 = parseInt(paired.row2.dataset.val || '0', 10);
-      currentTemp = v1 === 10 ? 10 + v2 : v1;
-      defaultMax = 20;
+      currentTemp = getPairedBoxTotal(paired.baseId);
+      defaultMax = paired.row4 ? 40 : 20;
     } else {
       currentTemp = parseInt(sqEl.dataset.val || '0', 10);
     }
@@ -1237,14 +1221,26 @@ function updatePoolCounters(scope = document) {
 function setPairedBoxTotal(baseSqId, total) {
   const row1 = document.querySelector(`.boxes-container[data-id="${baseSqId}1"]`);
   const row2 = document.querySelector(`.boxes-container[data-id="${baseSqId}2"]`);
+  const row3 = document.querySelector(`.boxes-container[data-id="${baseSqId}3"]`);
+  const row4 = document.querySelector(`.boxes-container[data-id="${baseSqId}4"]`);
   if (!row1 || !row2) return;
-  const clamped = Math.max(0, Math.min(20, total));
-  const v1 = Math.min(10, clamped);
-  const v2 = Math.max(0, clamped - 10);
-  row1.dataset.val = v1;
-  row2.dataset.val = v2;
-  updateVisual(row1, v1, 'square-box');
-  updateVisual(row2, v2, 'square-box');
+  
+  const maxVal = row4 ? 40 : 20;
+  const clamped = Math.max(0, Math.min(maxVal, total));
+  
+  row1.dataset.val = Math.min(10, clamped);
+  row2.dataset.val = Math.max(0, Math.min(10, clamped - 10));
+  updateVisual(row1, row1.dataset.val, 'square-box');
+  updateVisual(row2, row2.dataset.val, 'square-box');
+  
+  if (row3) {
+    row3.dataset.val = Math.max(0, Math.min(10, clamped - 20));
+    updateVisual(row3, row3.dataset.val, 'square-box');
+  }
+  if (row4) {
+    row4.dataset.val = Math.max(0, clamped - 30);
+    updateVisual(row4, row4.dataset.val, 'square-box');
+  }
 }
 
 function initMageQuintParaWheel() {
