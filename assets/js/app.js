@@ -2430,6 +2430,7 @@ function getPdfShareBaseUrl() {
 }
 
 const V3_SPLATS = ['mortal', 'vampire', 'werewolf', 'mage', 'changeling', 'wraith'];
+const V3_WEREWOLF_FORMS = ['homid', 'glabro', 'crinos', 'hispo', 'lupus'];
 const V3_B79_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~!$()*+,;=:@/?";
 const V3_B79_BASE = BigInt(V3_B79_ALPHABET.length); // 79
 const V3_B79_REV = Object.fromEntries([...V3_B79_ALPHABET].map((c, i) => [c, BigInt(i)]));
@@ -2564,8 +2565,15 @@ function packStateBinary(state) {
   ];
   const hasCustomCounts = counts.some((c, i) => c !== defaults[i]);
 
+  const wwFormIdx = sp === 'werewolf'
+    ? Math.max(0, V3_WEREWOLF_FORMS.indexOf(state.werewolfForm || 'homid'))
+    : 0;
+
   const buf = [];
-  const flags = (spIdx & 0x07) | ((state.isTenDotMode ? 1 : 0) << 3) | ((hasCustomCounts ? 1 : 0) << 4);
+  const flags = (spIdx & 0x07)
+    | ((state.isTenDotMode ? 1 : 0) << 3)
+    | ((hasCustomCounts ? 1 : 0) << 4)
+    | ((wwFormIdx & 0x07) << 5);
   buf.push(flags);
   if (hasCustomCounts) {
     counts.forEach(c => writeVarint(buf, c));
@@ -2630,6 +2638,8 @@ function unpackStateBinary(bytes) {
   const sp = V3_SPLATS[flags & 0x07] || 'mortal';
   const isTenDotMode = Boolean((flags >> 3) & 1);
   const hasCustomCounts = Boolean((flags >> 4) & 1);
+  const wwFormIdx = (flags >> 5) & 0x07;
+  const werewolfForm = sp === 'werewolf' ? (V3_WEREWOLF_FORMS[wwFormIdx] || 'homid') : undefined;
 
   const counts = hasCustomCounts
     ? Array.from({ length: 9 }, () => readVarint(bytes, cursor))
@@ -2697,6 +2707,7 @@ function unpackStateBinary(bytes) {
   return {
     splat: sp,
     isTenDotMode,
+    ...(sp === 'werewolf' ? { werewolfForm } : {}),
     meritCount: counts[0],
     flawCount: counts[1],
     combatCount: counts[2],
@@ -3041,7 +3052,7 @@ const SPLAT_GUIDES = {
         <tr><td>Discipline</td><td>7 / dot</td></tr>
         <tr><td>Background</td><td>1 / dot</td></tr>
         <tr><td>Virtue</td><td>2 / dot</td></tr>
-        <tr><td>Humanity / Path</td><td>2 / dot</td></tr>
+        <tr><td>Humanity / Path</td><td>1 / dot</td></tr>
         <tr><td>Willpower</td><td>1 / dot</td></tr>
         <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
       </tbody>
