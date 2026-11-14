@@ -2,6 +2,7 @@ import { SAMPLE_CHARACTERS } from './sampleCharacters.js';
 
 const STORAGE_KEY = 'wod_1to1_sheet_v3';
 const THEME_STORAGE_KEY = 'wod_sheet_theme_v1';
+const COMPACT_STORAGE_KEY = 'wod_sheet_compact_v1';
 const SHARE_DOMAIN_PLACEHOLDER = 'https://wod20-charsheet-tool.vercel.app/';
 const DEFAULT_MF_ROWS = 5;
 const DEFAULT_COMBAT_ROWS = 6;
@@ -15,6 +16,7 @@ const SPLAT_DISPLAY_NAMES = {
 };
 let lastSharedSnapshot = '';
 let isTenDotMode = false;
+let isCompactMode = false;
 let currentTheme = 'dark';
 let isRestoring = false;
 let isSheetDirty = false;
@@ -22,8 +24,37 @@ let pendingSampleKey = '';
 let autoSaveTimer = null;
 let resizeTimer = null;
 let currentSplat = 'mortal';
+let currentWerewolfForm = 'homid';
 let activeSlotId = null;
 let rosterDeleteConfirmId = null;
+
+const WEREWOLF_FORMS = {
+  homid: {
+    label: 'Homid',
+    str: 0, dex: 0, sta: 0, man: 0, app: 0,
+    summary: 'Base Form · No attribute modifiers'
+  },
+  glabro: {
+    label: 'Glabro',
+    str: 2, dex: 0, sta: 2, man: -2, app: -1,
+    summary: 'Str +2 · Sta +2 · Man -2 · App -1'
+  },
+  crinos: {
+    label: 'Crinos',
+    str: 4, dex: 1, sta: 3, man: 'zero', app: 'zero',
+    summary: 'Str +4 · Dex +1 · Sta +3 · Man 0 · App 0 · Claws Str+2 Agg / Bite Str+1 Agg'
+  },
+  hispo: {
+    label: 'Hispo',
+    str: 3, dex: 2, sta: 3, man: 'zero', app: 0,
+    summary: 'Str +3 · Dex +2 · Sta +3 · Man 0 · Bite Str+2 Agg / Claws Str+1 Agg'
+  },
+  lupus: {
+    label: 'Lupus',
+    str: 1, dex: 2, sta: 2, man: 'zero', app: 0,
+    summary: 'Str +1 · Dex +2 · Sta +2 · Man 0 · Bite Str+1 Agg'
+  }
+};
 
 const HEALTH_STATES = ['empty', 'bashing', 'lethal', 'aggravated'];
 const HEALTH_SYMBOLS = { empty: '', bashing: '/', lethal: 'X', aggravated: '*' };
@@ -42,6 +73,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     ta.dataset.defaultHeight = ta.style.height || '';
   });
   restoreSavedTheme();
+  restoreSavedCompactMode();
   syncAppBarOffset();
   initDotsAndBoxes();
   initHealthBoxes();
@@ -243,6 +275,14 @@ function bindControls() {
     });
   }
 
+  const compactBtn = document.getElementById('compactToggleBtn');
+  if (compactBtn) {
+    compactBtn.addEventListener('click', () => {
+      applyCompactMode(!isCompactMode, true);
+      showToast(isCompactMode ? 'Compact / Dense Mode Enabled' : 'Standard Layout Restored');
+    });
+  }
+
   document.getElementById('resetSheetBtn').addEventListener('click', () => {
     document.getElementById('clearModal').style.display = 'flex';
   });
@@ -283,7 +323,11 @@ function bindControls() {
   window.addEventListener('beforeprint', () => {
     const active = document.getElementById('splat-' + currentSplat);
     if (active) autoResizeTextareas(active);
+    prepareCompactPrintRows();
     ensureSyncShareLinkForPrint();
+  });
+  window.addEventListener('afterprint', () => {
+    cleanupCompactPrintRows();
   });
   document.getElementById('printSheetBtn').addEventListener('click', async () => {
     const active = document.getElementById('splat-' + currentSplat);
@@ -423,6 +467,19 @@ function bindControls() {
       return;
     }
 
+    const shiftBtn = e.target.closest('.shift-form-btn');
+    if (shiftBtn) {
+      const form = shiftBtn.dataset.form;
+      if (form && WEREWOLF_FORMS[form] && currentWerewolfForm !== form) {
+        currentWerewolfForm = form;
+        updateWerewolfFormUI();
+        if (typeof refreshSelectedDiceTraits === 'function') refreshSelectedDiceTraits();
+        isSheetDirty = true;
+        scheduleAutoSave();
+      }
+      return;
+    }
+
     const healBtn = e.target.closest('.clearHealthBtn');
     if (healBtn) {
       const splat = healBtn.dataset.splat;
@@ -505,6 +562,9 @@ function bindControls() {
       scheduleAutoSave();
       if (e.target.id === currentSplat + '_char_name') {
         updateDocumentTitle();
+      }
+      if (e.target.id === 'vampire_char_gen') {
+        updateSplatHelpers();
       }
     }
   });
@@ -684,7 +744,10 @@ function bindDotContainer(container) {
       if (current === 0) return;
       container.dataset.val = 0;
       updateVisual(container, 0, childClass);
-      if (!isSquare) updateGuideTally();
+      if (!isSquare) {
+        updateGuideTally();
+        if (container.dataset.id && container.dataset.id.startsWith('werewolf_attr_')) updateWerewolfFormUI();
+      }
       if (typeof refreshSelectedDiceTraits === 'function') refreshSelectedDiceTraits();
     }
     updatePoolCounters(container.closest('.pool-box') || document);
@@ -736,7 +799,10 @@ function bindDotContainer(container) {
         const next = current === rawIdx ? Math.max(0, rawIdx - 1) : rawIdx;
         container.dataset.val = next;
         updateVisual(container, next, childClass);
-        if (!isSquare) updateGuideTally();
+        if (!isSquare) {
+          updateGuideTally();
+          if (container.dataset.id && container.dataset.id.startsWith('werewolf_attr_')) updateWerewolfFormUI();
+        }
         if (typeof refreshSelectedDiceTraits === 'function') refreshSelectedDiceTraits();
       }
       updatePoolCounters(container.closest('.pool-box') || document);
@@ -938,6 +1004,74 @@ function resetTenDotModeUI() {
   if (typeof syncGuideTenDotMode === 'function') syncGuideTenDotMode();
 }
 
+function getEffectiveAttrVal(splat, attrKey, container = document.getElementById('splat-' + splat)) {
+  if (!container) return 0;
+  const baseVal = getDotVal(container, `${splat}_attr_${attrKey}`);
+  if (splat !== 'werewolf') return baseVal;
+  const formCfg = WEREWOLF_FORMS[currentWerewolfForm] || WEREWOLF_FORMS.homid;
+  const mod = formCfg[attrKey];
+  if (mod === undefined || mod === 0) return baseVal;
+  if (mod === 'zero') return 0;
+  return Math.max(0, baseVal + mod);
+}
+
+function updateWerewolfFormUI() {
+  const wwContainer = document.getElementById('splat-werewolf');
+  if (!wwContainer) return;
+  const formCfg = WEREWOLF_FORMS[currentWerewolfForm] || WEREWOLF_FORMS.homid;
+
+  wwContainer.querySelectorAll('.shift-form-btn').forEach(btn => {
+    const isActive = btn.dataset.form === currentWerewolfForm;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+
+  const summaryEl = document.getElementById('werewolfFormSummary');
+  if (summaryEl) {
+    summaryEl.textContent = formCfg.summary;
+  }
+
+  const shiftedAttrs = ['str', 'dex', 'sta', 'man', 'app'];
+  shiftedAttrs.forEach(attrKey => {
+    const dotsEl = wwContainer.querySelector(`[data-id="werewolf_attr_${attrKey}"]`);
+    const row = dotsEl ? dotsEl.closest('.trait-row') : null;
+    if (!row) return;
+
+    let badge = row.querySelector('.shift-attr-badge');
+    const mod = formCfg[attrKey];
+    if (currentWerewolfForm === 'homid' || mod === undefined || mod === 0) {
+      if (badge) badge.remove();
+      return;
+    }
+
+    const baseVal = getDotVal(wwContainer, `werewolf_attr_${attrKey}`);
+    const effVal = getEffectiveAttrVal('werewolf', attrKey, wwContainer);
+
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'shift-attr-badge no-print';
+      const leader = row.querySelector('.trait-leader');
+      if (leader) row.insertBefore(badge, leader);
+      else row.insertBefore(badge, dotsEl);
+    }
+
+    badge.classList.remove('shift-up', 'shift-down', 'shift-zero');
+    if (mod === 'zero') {
+      badge.classList.add('shift-zero');
+      badge.textContent = `→ 0`;
+      badge.title = `${formCfg.label} form sets this attribute to 0`;
+    } else if (mod > 0) {
+      badge.classList.add('shift-up');
+      badge.textContent = `→ ${effVal} (+${mod})`;
+      badge.title = `${formCfg.label} form: ${baseVal} + ${mod} = ${effVal}`;
+    } else {
+      badge.classList.add('shift-down');
+      badge.textContent = `→ ${effVal} (${mod})`;
+      badge.title = `${formCfg.label} form: max(0, ${baseVal} ${mod}) = ${effVal}`;
+    }
+  });
+}
+
 function switchSplat(splat) {
   currentSplat = splat;
   document.body.dataset.splat = splat;
@@ -954,10 +1088,121 @@ function switchSplat(splat) {
   }
 }
 
+function getPairedBoxTotal(baseSqId) {
+  const row1 = document.querySelector(`.boxes-container[data-id="${baseSqId}1"]`);
+  const row2 = document.querySelector(`.boxes-container[data-id="${baseSqId}2"]`);
+  if (!row1 || !row2) return 0;
+  const v1 = parseInt(row1.dataset.val || '0', 10);
+  const v2 = parseInt(row2.dataset.val || '0', 10);
+  return v1 === 10 ? 10 + v2 : v1;
+}
+
+function getVampireGenStats(rawGenStr) {
+  const match = String(rawGenStr || '').match(/(\d+)/);
+  const gen = match ? parseInt(match[1], 10) : 13;
+  const table = {
+    15: { max: 10, perTurn: '1/turn' },
+    14: { max: 10, perTurn: '1/turn' },
+    13: { max: 10, perTurn: '1/turn' },
+    12: { max: 11, perTurn: '1/turn' },
+    11: { max: 12, perTurn: '1/turn' },
+    10: { max: 13, perTurn: '1/turn' },
+    9:  { max: 14, perTurn: '2/turn' },
+    8:  { max: 15, perTurn: '3/turn' },
+    7:  { max: 20, perTurn: '4/turn' },
+    6:  { max: 30, perTurn: '6/turn' },
+    5:  { max: 40, perTurn: '8/turn' },
+    4:  { max: 50, perTurn: '10/turn' }
+  };
+  let stats;
+  if (gen >= 14) stats = { max: 10, perTurn: '1/turn' };
+  else if (gen <= 3) stats = { max: '100+', perTurn: '10+/turn' };
+  else stats = table[gen] || { max: 10, perTurn: '1/turn' };
+  const suffix = (gen % 100 >= 11 && gen % 100 <= 13)
+    ? 'th'
+    : ({ 1: 'st', 2: 'nd', 3: 'rd' }[gen % 10] || 'th');
+  return { gen, label: `${gen}${suffix} Gen`, max: stats.max, perTurn: stats.perTurn };
+}
+
+function updateSplatHelpers() {
+  // 1. Vampire Generation Blood Pool Helper (V20)
+  const vampBadge = document.getElementById('vampire_gen_badge');
+  if (vampBadge) {
+    const genVal = document.getElementById('vampire_char_gen')?.value || '';
+    const info = getVampireGenStats(genVal);
+    vampBadge.textContent = `${info.label} · Max ${info.max} · ${info.perTurn}`;
+    vampBadge.classList.remove('helper-warn', 'helper-danger');
+    if (typeof info.max === 'number') {
+      const curBlood = getPairedBoxTotal('vampire_blood_sq');
+      if (curBlood > info.max) {
+        vampBadge.classList.add('helper-warn');
+        vampBadge.title = `Current Blood (${curBlood}) exceeds ${info.label} maximum (${info.max})`;
+      } else {
+        vampBadge.title = `V20 ${info.label}: Max Blood Pool ${info.max}, Spend ${info.perTurn}`;
+      }
+    }
+  }
+
+  // 2. Mage Quintessence / Paradox 20-Point Wheel Visual & Warning (M20)
+  updateMageWheelUI();
+  const wheelBadge = document.getElementById('mage_wheel_badge');
+  if (wheelBadge) {
+    const quint = getPairedBoxTotal('mage_quint_sq');
+    const para = getPairedBoxTotal('mage_para_sq');
+    const total = quint + para;
+    wheelBadge.classList.remove('helper-warn', 'helper-danger');
+    if (total > 20) {
+      const overflow = total - 20;
+      wheelBadge.textContent = `Wheel: ${total}/20 (-${overflow} Quint)`;
+      wheelBadge.classList.add('helper-danger');
+      wheelBadge.title = `Paradox overflow! ${overflow} point(s) exceed the 20-point wheel and burn away Quintessence.`;
+    } else if (total >= 17 || para >= 5) {
+      wheelBadge.textContent = `Wheel: ${total} / 20`;
+      wheelBadge.classList.add('helper-warn');
+      wheelBadge.title = `Approaching 20-point Quintessence + Paradox wheel limit (${20 - total} open).`;
+    } else {
+      wheelBadge.textContent = `Wheel: ${total} / 20`;
+      wheelBadge.title = `M20 Quintessence (${quint}) + Paradox (${para}) = ${total} / 20 wheel slots.`;
+    }
+  }
+
+  // 3. Wraith Catharsis / Shadow Alert (Wr20)
+  const cathBadge = document.getElementById('wraith_catharsis_badge');
+  if (cathBadge) {
+    const angstSq = document.querySelector('.boxes-container[data-id="wraith_angst_sq"]');
+    const wpDots = document.querySelector('.dots-container[data-id="wraith_wp_dots"]');
+    const psycheWpDots = document.querySelector('.dots-container[data-id="wraith_psyche_wp"]');
+    const tempAngst = angstSq ? parseInt(angstSq.dataset.val || '0', 10) : 0;
+    const permWp = wpDots ? parseInt(wpDots.dataset.val || '0', 10) : 0;
+    const psycheWp = psycheWpDots ? parseInt(psycheWpDots.dataset.val || '0', 10) : 0;
+    const threshold = permWp > 0 ? permWp : psycheWp;
+
+    cathBadge.classList.remove('helper-warn', 'helper-danger');
+    if (threshold > 0 && tempAngst >= threshold) {
+      cathBadge.textContent = `Catharsis! (${tempAngst} ≥ WP ${threshold})`;
+      cathBadge.classList.add('helper-danger');
+      cathBadge.title = `Temporary Angst (${tempAngst}) equals or exceeds Permanent Willpower (${threshold}) — Catharsis triggered!`;
+    } else if (threshold > 0 && tempAngst === threshold - 1 && tempAngst > 0) {
+      cathBadge.textContent = `Near Catharsis (${tempAngst}/${threshold})`;
+      cathBadge.classList.add('helper-warn');
+      cathBadge.title = `1 Temporary Angst away from Catharsis (Willpower ${threshold}).`;
+    } else {
+      cathBadge.textContent = `WP ${threshold} Threshold`;
+      cathBadge.title = `Wr20 Catharsis triggers when Temporary Angst (${tempAngst}) reaches Permanent Willpower (${threshold}).`;
+    }
+  }
+}
+
 function updatePoolCounters(scope = document) {
   scope.querySelectorAll('.pool-counter-badge, .renown-counter-badge').forEach(badge => {
     const sqId = badge.dataset.sq;
     const dotsId = badge.dataset.dots;
+    if (!sqId && dotsId) {
+      const dotsEl = document.querySelector(`.dots-container[data-id="${dotsId}"]`);
+      const val = dotsEl ? parseInt(dotsEl.dataset.val || '0', 10) : 0;
+      badge.textContent = `${val} / 10`;
+      return;
+    }
     if (!sqId) return;
     const sqEl = document.querySelector(`.boxes-container[data-id="${sqId}"]`);
     if (!sqEl) return;
@@ -986,12 +1231,140 @@ function updatePoolCounters(scope = document) {
       ? `${currentTemp}/${maxVal}`
       : `${currentTemp} / ${maxVal}`;
   });
+  updateSplatHelpers();
+}
+
+function setPairedBoxTotal(baseSqId, total) {
+  const row1 = document.querySelector(`.boxes-container[data-id="${baseSqId}1"]`);
+  const row2 = document.querySelector(`.boxes-container[data-id="${baseSqId}2"]`);
+  if (!row1 || !row2) return;
+  const clamped = Math.max(0, Math.min(20, total));
+  const v1 = Math.min(10, clamped);
+  const v2 = Math.max(0, clamped - 10);
+  row1.dataset.val = v1;
+  row2.dataset.val = v2;
+  updateVisual(row1, v1, 'square-box');
+  updateVisual(row2, v2, 'square-box');
+}
+
+function initMageQuintParaWheel() {
+  const wheelEl = document.getElementById('mageQuintParaWheel');
+  if (!wheelEl) return;
+
+  // Build 20 radially rotated boxes: slot 1 at +9 deg (clockwise from 12 o'clock) through slot 20 at +351 deg
+  const radiusPct = 41.3; // 76px / 184px
+  for (let slot = 1; slot <= 20; slot++) {
+    const angleDeg = (slot - 0.5) * 18;
+    const rad = (angleDeg * Math.PI) / 180;
+    const xPct = (50 + radiusPct * Math.sin(rad)).toFixed(2);
+    const yPct = (50 - radiusPct * Math.cos(rad)).toFixed(2);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mage-wheel-box';
+    btn.dataset.slot = String(slot);
+    btn.style.left = `${xPct}%`;
+    btn.style.top = `${yPct}%`;
+    btn.style.transform = `rotate(${angleDeg}deg)`;
+    btn.style.setProperty('--counter-rot', `${-angleDeg}deg`);
+    if (slot <= 10) {
+      btn.setAttribute('aria-label', `Quintessence ${slot} (Wheel Slot ${slot})`);
+      btn.title = `Quintessence ${slot}`;
+    } else {
+      const pIdx = slot - 10;
+      btn.setAttribute('aria-label', `Paradox ${pIdx} (Wheel Slot ${slot})`);
+      btn.title = `Paradox ${pIdx}`;
+    }
+    wheelEl.appendChild(btn);
+  }
+
+  const clearHover = () => {
+    wheelEl.querySelectorAll('.wheel-hover-preview').forEach(el => el.classList.remove('wheel-hover-preview'));
+  };
+  wheelEl.addEventListener('mouseleave', clearHover);
+
+  wheelEl.addEventListener('mouseover', (e) => {
+    const btn = e.target.closest('.mage-wheel-box');
+    clearHover();
+    if (!btn) return;
+    const slot = parseInt(btn.dataset.slot || '0', 10);
+    const curQ = getPairedBoxTotal('mage_quint_sq');
+    if (slot <= 10 || (curQ > 10 && slot <= curQ)) {
+      for (let i = 1; i <= slot; i++) {
+        wheelEl.querySelector(`.mage-wheel-box[data-slot="${i}"]`)?.classList.add('wheel-hover-preview');
+      }
+    } else {
+      for (let i = 11; i <= slot; i++) {
+        wheelEl.querySelector(`.mage-wheel-box[data-slot="${i}"]`)?.classList.add('wheel-hover-preview');
+      }
+    }
+  });
+
+  wheelEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.mage-wheel-box');
+    if (!btn) return;
+    const slot = parseInt(btn.dataset.slot || '0', 10);
+    const curQ = getPairedBoxTotal('mage_quint_sq');
+    const curP = getPairedBoxTotal('mage_para_sq');
+
+    if (slot <= 10 || (curQ > 10 && slot <= curQ)) {
+      const nextQ = curQ === slot ? Math.max(0, slot - 1) : slot;
+      setPairedBoxTotal('mage_quint_sq', nextQ);
+    } else {
+      const targetP = slot - 10;
+      const nextP = curP === targetP ? Math.max(0, targetP - 1) : targetP;
+      setPairedBoxTotal('mage_para_sq', nextP);
+    }
+    updatePoolCounters(wheelEl.closest('.pool-box') || document);
+    isSheetDirty = true;
+    scheduleAutoSave();
+  });
+
+  wheelEl.addEventListener('contextmenu', (e) => {
+    const btn = e.target.closest('.mage-wheel-box');
+    if (!btn) return;
+    e.preventDefault();
+    const slot = parseInt(btn.dataset.slot || '0', 10);
+    if (slot <= 10) {
+      setPairedBoxTotal('mage_quint_sq', 0);
+    } else {
+      setPairedBoxTotal('mage_para_sq', 0);
+    }
+    updatePoolCounters(wheelEl.closest('.pool-box') || document);
+    isSheetDirty = true;
+    scheduleAutoSave();
+  });
+}
+
+function updateMageWheelUI() {
+  const wheelEl = document.getElementById('mageQuintParaWheel');
+  if (!wheelEl) return;
+  const quint = getPairedBoxTotal('mage_quint_sq');
+  const para = getPairedBoxTotal('mage_para_sq');
+
+  // Quintessence fills clockwise from top: slots 1 .. quint
+  // Paradox fills clockwise from bottom: slots 11 .. 20, then wrapping 1 .. 10
+  const paraSlots = new Set();
+  for (let i = 0; i < para; i++) {
+    const s = ((10 + i) % 20) + 1;
+    paraSlots.add(s);
+  }
+
+  wheelEl.querySelectorAll('.mage-wheel-box').forEach(btn => {
+    const slot = parseInt(btn.dataset.slot || '0', 10);
+    const hasQ = slot <= quint;
+    const hasP = paraSlots.has(slot);
+    btn.classList.toggle('filled-quint', hasQ && !hasP);
+    btn.classList.toggle('filled-para', hasP && !hasQ);
+    btn.classList.toggle('filled-collision', hasQ && hasP);
+  });
 }
 
 function initDotsAndBoxes() {
   document.querySelectorAll('.dots-container, .boxes-container').forEach(container => {
     bindDotContainer(container);
   });
+  initMageQuintParaWheel();
   updatePoolCounters();
 }
 
@@ -1105,6 +1478,7 @@ function captureCurrentState() {
   const state = {
     splat: currentSplat,
     isTenDotMode: isTenDotMode,
+    ...(currentSplat === 'werewolf' ? { werewolfForm: currentWerewolfForm } : {}),
     meritCount: meritTbody ? meritTbody.children.length : DEFAULT_MF_ROWS,
     flawCount: flawTbody ? flawTbody.children.length : DEFAULT_MF_ROWS,
     combatCount: combatTbody ? combatTbody.children.length : DEFAULT_COMBAT_ROWS,
@@ -1129,6 +1503,9 @@ function captureCurrentState() {
 
 function restoreState(state) {
   if (!state || !state.splat) return;
+  currentWerewolfForm = (state.splat === 'werewolf' && state.werewolfForm && WEREWOLF_FORMS[state.werewolfForm])
+    ? state.werewolfForm
+    : 'homid';
   isTenDotMode = !!state.isTenDotMode;
   document.body.classList.toggle('mode-10-dot', isTenDotMode);
   const dtl = document.getElementById('dotToggleLabel'); if(dtl) dtl.textContent = isTenDotMode ? 'Revert to 5-Dot Mode' : 'Enable 10-Dot Mode';
@@ -1224,6 +1601,7 @@ function restoreState(state) {
     }
   }
   updateWoundPenalty(state.splat);
+  if (state.splat === 'werewolf') updateWerewolfFormUI();
   updatePoolCounters(active);
   updateDocumentTitle();
   updateGuideTally();
@@ -1249,6 +1627,9 @@ function resetAttributesToDefault(targetSplat) {
 function clearSheet(silent = false, targetSplat = currentSplat) {
   const active = document.getElementById('splat-' + targetSplat);
   if (!active) return;
+  if (targetSplat === 'werewolf') {
+    currentWerewolfForm = 'homid';
+  }
   if (targetSplat === currentSplat) {
     resetTenDotModeUI();
   }
@@ -1280,11 +1661,80 @@ function clearSheet(silent = false, targetSplat = currentSplat) {
     updateHealthAriaLabel(el);
   });
   updateWoundPenalty(targetSplat);
+  if (targetSplat === 'werewolf') updateWerewolfFormUI();
   updatePoolCounters(active);
   updatePortrait(targetSplat, '');
   updateDocumentTitle();
   if (targetSplat === currentSplat) updateGuideTally();
   if (!silent) saveNow();
+}
+
+function applyCompactMode(enabled, persist = false) {
+  isCompactMode = Boolean(enabled);
+  document.body.classList.toggle('mode-compact', isCompactMode);
+  const lbl = document.getElementById('compactToggleLabel');
+  if (lbl) {
+    lbl.textContent = isCompactMode ? 'Disable Compact Mode' : 'Compact / Dense Mode';
+  }
+  const active = document.getElementById('splat-' + currentSplat);
+  if (active) {
+    requestAnimationFrame(() => autoResizeTextareas(active));
+  }
+  if (persist) {
+    try {
+      localStorage.setItem(COMPACT_STORAGE_KEY, isCompactMode ? '1' : '0');
+    } catch (e) {}
+  }
+}
+
+function restoreSavedCompactMode() {
+  try {
+    const saved = localStorage.getItem(COMPACT_STORAGE_KEY);
+    applyCompactMode(saved === '1', false);
+  } catch (e) {
+    applyCompactMode(false, false);
+  }
+}
+
+function prepareCompactPrintRows() {
+  cleanupCompactPrintRows();
+  if (!isCompactMode) return;
+  const active = document.getElementById('splat-' + currentSplat);
+  if (!active) return;
+
+  const collapseEmptyChildren = (containerEl, rowSelector, minKeepIfAllEmpty = 2) => {
+    if (!containerEl) return;
+    const rows = Array.from(containerEl.querySelectorAll(rowSelector));
+    if (!rows.length) return;
+    const populatedFlags = rows.map(row => {
+      const hasText = Array.from(row.querySelectorAll('input[type="text"], textarea'))
+        .some(inp => inp.value && inp.value.trim().length > 0);
+      const hasDots = Array.from(row.querySelectorAll('.dots-container, .boxes-container'))
+        .some(dc => parseInt(dc.dataset.val || '0', 10) > 0);
+      return hasText || hasDots;
+    });
+    const anyPopulated = populatedFlags.some(Boolean);
+    rows.forEach((row, idx) => {
+      if (anyPopulated) {
+        if (!populatedFlags[idx]) row.classList.add('compact-print-empty');
+      } else if (idx >= minKeepIfAllEmpty) {
+        row.classList.add('compact-print-empty');
+      }
+    });
+  };
+
+  collapseEmptyChildren(document.getElementById(`${currentSplat}_merit_tbody`), 'tr', 2);
+  collapseEmptyChildren(document.getElementById(`${currentSplat}_flaw_tbody`), 'tr', 2);
+  collapseEmptyChildren(document.getElementById(`${currentSplat}_combat_tbody`), 'tr', 2);
+  for (let i = 0; i <= 2; i++) {
+    collapseEmptyChildren(document.getElementById(`${currentSplat}_adv_${i}_tbody`), '.trait-flex-row', 2);
+  }
+}
+
+function cleanupCompactPrintRows() {
+  document.querySelectorAll('.compact-print-empty').forEach(el => {
+    el.classList.remove('compact-print-empty');
+  });
 }
 
 function applyTheme(theme, persist = false) {
@@ -1825,9 +2275,11 @@ function hardResetWebsite() {
   try {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(THEME_STORAGE_KEY);
+    localStorage.removeItem(COMPACT_STORAGE_KEY);
   } catch (e) {}
 
   applyTheme('dark', false);
+  applyCompactMode(false, false);
   lastSharedSnapshot = '';
   activeSlotId = null;
   rosterDeleteConfirmId = null;
@@ -3135,7 +3587,16 @@ function refreshSelectedDiceTraits() {
   let hasSpec = false;
   selectedDiceTraits = selectedDiceTraits.map(t => {
     const dotsEl = active.querySelector(`[data-id="${t.id}"]`);
-    const val = dotsEl ? parseInt(dotsEl.dataset.val || '0', 10) : t.val;
+    let val = dotsEl ? parseInt(dotsEl.dataset.val || '0', 10) : t.val;
+    let formTag = '';
+    const wwAttrMatch = t.id && t.id.match(/^werewolf_attr_(str|dex|sta|man|app)$/);
+    if (wwAttrMatch && currentSplat === 'werewolf') {
+      val = getEffectiveAttrVal('werewolf', wwAttrMatch[1], active);
+      if (currentWerewolfForm !== 'homid') {
+        const fLabel = (WEREWOLF_FORMS[currentWerewolfForm] || {}).label;
+        if (fLabel) formTag = ` [${fLabel}]`;
+      }
+    }
     let name = t.name;
     if (t.nameInputId) {
       const nameInp = document.getElementById(t.nameInputId);
@@ -3148,7 +3609,7 @@ function refreshSelectedDiceTraits() {
     }
     total += val;
     if (spec) hasSpec = true;
-    return { ...t, name, val, spec };
+    return { ...t, name, formTag, val, spec };
   });
 
   const poolInput = document.getElementById('dicePoolInput');
@@ -3161,7 +3622,7 @@ function refreshSelectedDiceTraits() {
   const clr = document.getElementById('clearDiceTraitsBtn');
   if (lbl) {
     lbl.innerHTML = selectedDiceTraits
-      .map(t => `<strong>${escapeHtmlForDice(t.name)}</strong> (${t.val}${t.spec ? `, <em>${escapeHtmlForDice(t.spec)}</em>` : ''})`)
+      .map(t => `<strong>${escapeHtmlForDice(t.name)}${escapeHtmlForDice(t.formTag || '')}</strong> (${t.val}${t.spec ? `, <em>${escapeHtmlForDice(t.spec)}</em>` : ''})`)
       .join(' + ');
   }
   if (clr) clr.style.display = 'inline-block';
@@ -3285,7 +3746,7 @@ function executeWodRoll() {
 
   const charName = (document.getElementById(currentSplat + '_char_name')?.value || '').trim();
   const traitDesc = selectedDiceTraits.length
-    ? selectedDiceTraits.map(t => t.name).join(' + ')
+    ? selectedDiceTraits.map(t => `${t.name}${t.formTag || ''}`).join(' + ')
     : 'Custom Pool';
   const mods = [];
   if (specialty) mods.push('Specialty');
@@ -3306,7 +3767,7 @@ function executeWodRoll() {
 
 function executeInitiativeRoll() {
   const active = document.getElementById('splat-' + currentSplat);
-  const dex = active ? getDotVal(active, `${currentSplat}_attr_dex`) : 0;
+  const dex = active ? getEffectiveAttrVal(currentSplat, 'dex', active) : 0;
   const wit = active ? getDotVal(active, `${currentSplat}_attr_wit`) : 0;
   const woundToggle = document.getElementById('diceWoundToggle');
   const wound = getActiveWoundPenalty(currentSplat);
