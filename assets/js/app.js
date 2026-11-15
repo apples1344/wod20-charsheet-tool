@@ -3695,26 +3695,23 @@ function executeWodRoll() {
     : Math.max(0, basePool + (applyWound ? wound.penalty : 0));
 
   const dice = [];
+  let rawSuccesses = 0;
+  let ones = 0;
+
   for (let i = 0; i < effectivePool; i++) {
     const val = rollSingleD10();
-    dice.push({ val, isBonus: false });
-    if (specialty && val === 10) {
-      let cur = val;
-      let chainGuard = 0;
-      while (cur === 10 && chainGuard < 20) {
-        cur = rollSingleD10();
-        dice.push({ val: cur, isBonus: true });
-        chainGuard++;
+    dice.push({ val });
+    
+    if (val === 1) {
+      ones++;
+    } else if (val >= difficulty) {
+      if (specialty && val === 10) {
+        rawSuccesses += 2;
+      } else {
+        rawSuccesses += 1;
       }
     }
   }
-
-  let rawSuccesses = 0;
-  let ones = 0;
-  dice.forEach(d => {
-    if (d.val >= difficulty) rawSuccesses++;
-    if (d.val === 1) ones++;
-  });
 
   const isBotch = effectivePool > 0 && rawSuccesses === 0 && ones > 0 && !spendWp;
   const rolledNet = rawSuccesses - ones;
@@ -3745,10 +3742,14 @@ function executeWodRoll() {
   trayEl.innerHTML = dice.length
     ? dice.map(d => {
         let cls = 'die-miss';
-        if (d.val === 10) cls = 'die-ten';
+        let bonusTag = '';
+        if (d.val === 10) {
+          cls = 'die-ten';
+          if (specialty) bonusTag = '<span class="die-bonus-tag" title="Specialty Double Success">++</span>';
+        }
         else if (d.val >= difficulty) cls = 'die-success';
         else if (d.val === 1) cls = 'die-one';
-        return `<span class="die-badge ${cls}">${d.val}${d.isBonus ? '<span class="die-bonus-tag">+</span>' : ''}</span>`;
+        return `<span class="die-badge ${cls}">${d.val}${bonusTag}</span>`;
       }).join('')
     : '<span style="font-size:11px; color:#888;">No dice rolled (0 effective pool)</span>';
 
@@ -3761,7 +3762,7 @@ function executeWodRoll() {
   if (spendWp) mods.push('Willpower +1');
   if (applyWound && wound.penalty < 0) mods.push(wound.incapacitated ? 'Incapacitated' : `Wound ${wound.penalty}`);
 
-  const diceStr = dice.map(d => (d.isBonus ? `+${d.val}` : `${d.val}`)).join(', ');
+  const diceStr = dice.map(d => d.val).join(', ');
   const prefix = charName ? `${charName} — ` : '';
   const modStr = mods.length ? `, ${mods.join(', ')}` : '';
   const summary = `${prefix}${traitDesc} (${effectivePool}d10, Diff ${difficulty}${modStr}): [${diceStr}] → ${outcomeLabel}`;
