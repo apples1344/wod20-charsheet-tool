@@ -2,7 +2,7 @@
   "type": "module",
   "name": "wod20-charsheet-tool",
   "private": true,
-  "version": "1.7.0",
+  "version": "1.7.1",
   "scripts": {
     "stamp": "node tools/stamp-sw.mjs",
     "test": "node --test tests/*.test.mjs"

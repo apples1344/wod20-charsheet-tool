@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.7.1
+
+- "Start a character" card: the × now hides it for this visit only, so it can't be lost by accident. A separate "Don't show this again" link under the options is the only lasting choice.
+- New **⋮ → Show start tips** brings the card back at any time, even on a sheet that already has something on it. It also undoes a "don't show again" (including the × from 1.6.0–1.7.0, which used to hide the card for good).
+
 ## 1.7.0
 
 Help for first-time players that stays out of the way of experienced ones. One switch, **⋮ → Beginner Hints**, turns the on-sheet help off (and back on); the Glossary tab is always there.

@@ -575,3 +575,9 @@ body[data-theme="parchment"] {
   @media (prefers-reduced-motion: reduce) { .trait-tip { animation: none; } .term-help { transition: none; } }
 }
 @media print { .term-help, .term-pop, .trait-tip { display: none !important; } }
+@media screen {
+  .start-card-foot { margin: 10px 0 0; font-size: 11.5px; color: var(--ink-muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+  .start-card-never { border: 0; padding: 0; background: none; color: var(--ink-muted); font: inherit; text-decoration: underline; cursor: pointer; }
+  .start-card-never:hover, .start-card-never:focus-visible { color: var(--text-color); }
+  .start-card-never:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+}

@@ -3871,20 +3871,45 @@ function startCardDismissed() {
   try { return localStorage.getItem(START_CARD_HIDDEN_KEY) === '1'; } catch (e) { return false; }
 }
 
+// × hides the card for this visit only; "Don't show this again" is the only lasting choice.
+// "Show start tips" (⋮ menu) brings it back, even on a sheet that already has something on it.
+let startCardClosedThisVisit = false;
+let startCardForced = false;
+
 function updateStartCard() {
   const card = document.getElementById('startCard');
   if (!card) return;
-  const hide = startCardDismissed() || hasActiveSheetData();
+  const hide = startCardClosedThisVisit || (!startCardForced && (startCardDismissed() || hasActiveSheetData()));
   if (card.hidden !== hide) card.hidden = hide;
+}
+
+function showStartTips() {
+  document.getElementById('moreOptionsMenu')?.classList.remove('show');
+  try { localStorage.removeItem(START_CARD_HIDDEN_KEY); } catch (e) { /* ignore */ }
+  startCardClosedThisVisit = false;
+  startCardForced = true;
+  updateStartCard();
+  const card = document.getElementById('startCard');
+  if (!card) return;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  card.querySelector('.start-option')?.focus({ preventScroll: true });
 }
 
 function bindStartCard() {
   const card = document.getElementById('startCard');
   if (!card) return;
-  document.getElementById('startCardClose')?.addEventListener('click', () => {
-    try { localStorage.setItem(START_CARD_HIDDEN_KEY, '1'); } catch (e) { /* storage unavailable: hide for this visit */ }
+  const hideCard = () => {
+    startCardClosedThisVisit = true;
+    startCardForced = false;
     card.hidden = true;
+  };
+  document.getElementById('startCardClose')?.addEventListener('click', hideCard);
+  document.getElementById('startCardNever')?.addEventListener('click', () => {
+    try { localStorage.setItem(START_CARD_HIDDEN_KEY, '1'); } catch (e) { /* storage unavailable: hidden for this visit */ }
+    hideCard();
+    showToast('Start tips hidden. Bring them back from ⋮ → Show start tips.');
   });
+  document.getElementById('showStartTipsBtn')?.addEventListener('click', showStartTips);
   card.addEventListener('click', (e) => {
     const opt = e.target.closest('[data-start]');
     if (!opt) return;
