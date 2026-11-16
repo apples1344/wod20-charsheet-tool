@@ -5,10 +5,11 @@ import { V3_SPLATS, V3_WEREWOLF_FORMS } from './share-codec.js';
 
 export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 export const MAX_ROSTER_SLOTS = 200;
+export const MAX_LINK_BYTES = 1024 * 1024; // a share link may unpack to at most 1 MB
 const MAX_FIELDS = 3000;
 const MAX_TEXT = 20000;
 const MAX_PORTRAIT = 1500000;
-const MAX_ROWS = 60;
+export const MAX_ROWS = 60;
 const MAX_DOT = 10; // every dot or box row holds at most 10
 const ID_RE = /^[A-Za-z0-9_/-]{1,120}$/;
 const HEALTH_STATES = ['empty', 'bashing', 'lethal', 'aggravated'];
@@ -86,4 +87,39 @@ export function sanitizeImport(parsed) {
   }
   const state = sanitizeState(parsed);
   return state ? { kind: 'single', state } : { kind: 'invalid', reason: 'Unknown or missing game line' };
+}
+
+/**
+ * Inflates a deflate-raw payload but stops at `maxBytes`, so a crafted link can't unpack
+ * to gigabytes. Throws when the limit is passed.
+ */
+export async function inflateCapped(bytes, maxBytes = MAX_LINK_BYTES) {
+  const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > maxBytes) { await reader.cancel(); throw new Error('Link unpacks to more than ' + maxBytes + ' bytes'); }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let pos = 0;
+  for (const c of chunks) { out.set(c, pos); pos += c.length; }
+  return out;
+}
+
+/**
+ * A portrait given as a web address in someone else's file or link is held back: loading it
+ * would let that website see the visitor's IP address. Returns the held address (or '') and
+ * blanks it in the state.
+ */
+export function holdRemotePortrait(state) {
+  if (!state || !state.inputs) return '';
+  const key = state.splat + '_portrait_url';
+  const url = state.inputs[key] || '';
+  if (!/^https:\/\//i.test(url)) return '';
+  state.inputs[key] = '';
+  return url;
 }

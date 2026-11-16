@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wod20-sheet-86050af261';
+const CACHE_NAME = 'wod20-sheet-80f59d608b';
 const CORE_ASSETS = [
   './',
   './index.html'
@@ -18,6 +18,7 @@ const OPTIONAL_ASSETS = [
   './assets/js/dice3d-page.js',
   './assets/js/creation.js',
   './assets/js/print-prep.js',
+  './assets/js/quickstart.js',
   './assets/js/ux.js',
   './assets/js/hydrate.js',
   './assets/js/import-guard.js',

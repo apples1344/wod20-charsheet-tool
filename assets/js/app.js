@@ -1,5 +1,6 @@
 import { SAMPLE_CHARACTERS, SAMPLE_TIERS } from './sampleCharacters.js';
 import { preparePrintMirrors, clearPrintMirrors } from './print-prep.js';
+import { buildQuickStart, QUICK_ROLES, QUICK_STYLES } from './quickstart.js';
 import { WEREWOLF_FORMS, WOUND_LEVELS, HEALTH_PENALTIES, VAMPIRE_GENERATION } from './rules.js';
 import { computeCreation } from './creation.js';
 import { SPLAT_GUIDES, DOT_SCALE_GUIDE_HTML } from './guide.js';
@@ -7,7 +8,7 @@ import { resolveRoll, resolveInitiative } from './dice.js';
 import { createDiceStage, toneFor } from './dice3d.js';
 import { initUx, noteSaved, noteBackedUp } from './ux.js';
 import { hydrateContainers } from './hydrate.js';
-import { sanitizeImport, sanitizeState, MAX_IMPORT_BYTES } from './import-guard.js';
+import { sanitizeImport, sanitizeState, MAX_IMPORT_BYTES, MAX_ROWS, MAX_LINK_BYTES, inflateCapped, holdRemotePortrait } from './import-guard.js';
 import {
   V3_SPLATS, V3_WEREWOLF_FORMS,
   bytesToBase79, base79ToBytes, writeVarint, readVarint, dictEncodeUtf8, dictDecodeUtf8
@@ -81,6 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindDiceRoller();
   bindDice3d();
   bindPrintDialog();
+  bindQuickStart();
   initUx({
     getSplat: () => currentSplat,
     getWound: () => getActiveWoundPenalty(currentSplat),
@@ -1053,6 +1055,42 @@ function tagSampleSlot(key) {
   slot.tags = Array.from(new Set([...(slot.tags || []), 'Sample', tier]));
   saveGlobalStore(store);
   renderRosterUI();
+}
+
+// Someone else's link or file named a portrait on another website. Ask before loading it:
+// the request would show that website this visitor's IP address.
+function offerHeldPortrait(splat, url) {
+  const box = document.getElementById(splat + '_portraitContainer');
+  if (!box) return;
+  box.querySelector('.portrait-consent')?.remove();
+  let host = '';
+  try { host = new URL(url).hostname; } catch (e) { return; }
+  const wrap = document.createElement('div');
+  wrap.className = 'portrait-consent no-print';
+  const msg = document.createElement('p');
+  msg.textContent = `This character's portrait is on ${host}. Loading it lets that site see your IP address.`;
+  const load = document.createElement('button');
+  load.type = 'button';
+  load.className = 'btn btn-sm btn-accent';
+  load.textContent = 'Load portrait';
+  const skip = document.createElement('button');
+  skip.type = 'button';
+  skip.className = 'btn btn-sm';
+  skip.textContent = 'Skip';
+  const actions = document.createElement('div');
+  actions.className = 'portrait-consent-actions';
+  actions.append(load, skip);
+  wrap.append(msg, actions);
+  box.appendChild(wrap);
+  load.addEventListener('click', () => {
+    const input = document.getElementById(splat + '_portrait_url');
+    if (input) input.value = url;
+    updatePortrait(splat, url);
+    wrap.remove();
+    isSheetDirty = true;
+    saveNow();
+  });
+  skip.addEventListener('click', () => wrap.remove());
 }
 
 function updatePortrait(splat, url) {
@@ -2833,8 +2871,9 @@ function unpackStateBinary(bytes) {
   const wwFormIdx = (flags >> 5) & 0x07;
   const werewolfForm = sp === 'werewolf' ? (V3_WEREWOLF_FORMS[wwFormIdx] || 'homid') : undefined;
 
+  // Row counts come from the link: clamp them before any row is built.
   const counts = hasCustomCounts
-    ? Array.from({ length: 9 }, () => readVarint(bytes, cursor))
+    ? Array.from({ length: 9 }, () => Math.min(MAX_ROWS, readVarint(bytes, cursor)))
     : [
         DEFAULT_MF_ROWS, DEFAULT_MF_ROWS, DEFAULT_COMBAT_ROWS,
         getDefaultAdvRowCount(sp, 0), getDefaultAdvRowCount(sp, 1), getDefaultAdvRowCount(sp, 2),
@@ -2984,12 +3023,9 @@ async function checkUrlForCharacter() {
   if (!hash) return false;
   try {
     let state = null;
+    if (hash.length > 4 * MAX_LINK_BYTES) throw new Error('Link too long');
     if (hash.startsWith('#v3~')) {
-      const compBytes = base79ToBytes(hash.substring(4));
-      const stream = new Blob([compBytes]).stream();
-      const decomp = stream.pipeThrough(new DecompressionStream('deflate-raw'));
-      const rawBytes = new Uint8Array(await new Response(decomp).arrayBuffer());
-      state = unpackStateBinary(rawBytes);
+      state = unpackStateBinary(await inflateCapped(base79ToBytes(hash.substring(4))));
     } else if (hash.startsWith('#v3u~')) {
       state = unpackStateBinary(base79ToBytes(hash.substring(5)));
     } else if (hash.startsWith('#v2~')) {
@@ -2998,20 +3034,21 @@ async function checkUrlForCharacter() {
       const binary = atob(b64);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const stream = new Blob([bytes]).stream();
-      const decomp = stream.pipeThrough(new DecompressionStream('deflate-raw'));
-      state = JSON.parse(await new Response(decomp).text());
+      state = JSON.parse(new TextDecoder().decode(await inflateCapped(bytes)));
     } else if (hash.startsWith('#v1~')) {
       let b64 = hash.substring(4);
       while (b64.length % 4) b64 += '=';
       state = JSON.parse(decodeURIComponent(atob(b64)));
     }
-    if (state && !hash.startsWith('#v3')) state = sanitizeState(state);
+    // Every link format gets the same checks as an imported file (dots, text, rows).
+    if (state) state = sanitizeState(state);
     if (state) {
+      const heldPortrait = holdRemotePortrait(state);
       isRestoring = true;
       restoreState(state);
       isRestoring = false;
       showToast('Loaded from URL!');
+      if (heldPortrait) offerHeldPortrait(state.splat, heldPortrait);
       return true;
     }
   } catch (e) { console.error(e); showToast('Corrupted URL.'); }
@@ -3022,7 +3059,7 @@ const DARK_PACK_JSON_NOTICE = {
   license: 'World of Darkness Dark Pack Agreement',
   agreementUrl: 'https://www.paradoxinteractive.com/games/world-of-darkness/community/dark-pack-agreement',
   copyright: 'Portions of the materials are the copyrights and trademarks of Paradox Interactive AB, and are used with permission. All rights reserved. For more information please visit worldofdarkness.com.',
-  disclaimer: 'This is an unofficial fan creation and is not affiliated with or endorsed by Paradox Interactive or World of Darkness.'
+  disclaimer: 'This is an unofficial fan creation and not official World of Darkness material. It is not affiliated with or endorsed by Paradox Interactive.'
 };
 
 function saveAsJson() {
@@ -3071,6 +3108,7 @@ function importJsonFile(file, fromRosterModal = false) {
 
       // Single character JSON import
       const parsed = result.state;
+      const heldPortrait = holdRemotePortrait(parsed);
       if (hasActiveSheetData()) {
         activeSlotId = generateSlotId();
       }
@@ -3082,6 +3120,7 @@ function importJsonFile(file, fromRosterModal = false) {
       isRestoring = false;
       isSheetDirty = false;
       saveNow();
+      if (heldPortrait) offerHeldPortrait(parsed.splat, heldPortrait);
       if (fromRosterModal) renderRosterUI();
       showToast('Loaded JSON into Roster');
     } catch (err) {
@@ -3327,6 +3366,7 @@ function renderCreationPoints(c) {
     <details class="guide-tally-details" data-store="${TALLY_OPEN_STORAGE_KEY}"${open(TALLY_OPEN_STORAGE_KEY, true) ? ' open' : ''}>
       <summary class="guide-tally-title"><span>Creation Points</span><span class="guide-tally-summary${headClass}">${headline}</span></summary>
       <ol class="tally-steps" aria-label="Creation steps">${steps}</ol>
+      ${!c.attributes.started && !c.abilities.started ? '<button type="button" class="btn btn-sm btn-accent tally-quickstart" data-action="quickstart">Quick Start: place the dots for me</button>' : ''}
       <p class="guide-tally-note">${note}</p>
       ${attrHtml}
       ${abilHtml}
@@ -3341,6 +3381,9 @@ function renderCreationPoints(c) {
 function bindTallyToggles(tallyEl) {
   if (tallyEl.dataset.bound) return;
   tallyEl.dataset.bound = '1';
+  tallyEl.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="quickstart"]')) openQuickStart();
+  });
   // "toggle" does not bubble, so listen in the capture phase; the markup is rebuilt on every change
   tallyEl.addEventListener('toggle', (e) => {
     const key = e.target && e.target.dataset ? e.target.dataset.store : null;
@@ -3764,6 +3807,104 @@ function dice3dEnabled() {
 // Animates the already-decided dice; the outcome text and badges appear when they land.
 // Used by the roll menu, search and quick buttons: select one trait and roll it at once.
 const PRINT_PREFS_KEY = 'wod_sheet_print_prefs_v1';
+
+// ---------- Quick Start: fill a new sheet's dots from a role ----------
+const QUICKSTART_PREFS_KEY = 'wod_sheet_quickstart_v1';
+
+function openQuickStart() {
+  document.getElementById('moreOptionsMenu')?.classList.remove('show');
+  const dlg = document.getElementById('quickStartDialog');
+  const note = document.getElementById('quickStartNote');
+  const lineName = SPLAT_DISPLAY_NAMES[currentSplat] || currentSplat;
+  if (note) {
+    note.textContent = hasActiveSheetData()
+      ? `Makes a new ${lineName} character; your current one stays in the roster. Change the game line first if you want a different one.`
+      : `Fills this blank ${lineName} sheet. Change the game line first if you want a different one.`;
+  }
+  openModal(dlg);
+}
+
+function bindQuickStart() {
+  const dlg = document.getElementById('quickStartDialog');
+  const rolesEl = document.getElementById('quickStartRoles');
+  const stylesEl = document.getElementById('quickStartStyles');
+  if (!dlg || !rolesEl || !stylesEl) return;
+
+  let prefs = {};
+  try { prefs = JSON.parse(localStorage.getItem(QUICKSTART_PREFS_KEY) || '{}') || {}; } catch (e) { prefs = {}; }
+  const roleKey = QUICK_ROLES.some(r => r.key === prefs.role) ? prefs.role : QUICK_ROLES[0].key;
+  const styleKey = QUICK_STYLES.some(s => s.key === prefs.style) ? prefs.style : 'rounded';
+
+  // Built with DOM calls (no HTML strings): the labels are this app's own text either way.
+  QUICK_ROLES.forEach(r => {
+    const label = document.createElement('label');
+    label.className = 'quickstart-role';
+    const input = document.createElement('input');
+    input.type = 'radio'; input.name = 'quickRole'; input.value = r.key; input.checked = r.key === roleKey;
+    const name = document.createElement('b'); name.textContent = r.label;
+    const blurb = document.createElement('small'); blurb.textContent = r.blurb;
+    const text = document.createElement('span'); text.append(name, blurb);
+    label.append(input, text);
+    rolesEl.appendChild(label);
+  });
+  QUICK_STYLES.forEach(st => {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'radio'; input.name = 'quickStyle'; input.value = st.key; input.checked = st.key === styleKey;
+    const name = document.createElement('b'); name.textContent = st.label;
+    const blurb = document.createElement('small'); blurb.textContent = st.blurb;
+    const text = document.createElement('span'); text.append(name, blurb);
+    label.append(input, ' ', text);
+    stylesEl.appendChild(label);
+  });
+
+  document.getElementById('quickStartBtn')?.addEventListener('click', openQuickStart);
+  document.getElementById('quickStartMenuBtn')?.addEventListener('click', openQuickStart);
+  document.getElementById('quickStartCancelBtn')?.addEventListener('click', () => closeModal(dlg));
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) closeModal(dlg); });
+  document.getElementById('quickStartGoBtn')?.addEventListener('click', () => {
+    const role = dlg.querySelector('input[name="quickRole"]:checked')?.value || QUICK_ROLES[0].key;
+    const style = dlg.querySelector('input[name="quickStyle"]:checked')?.value || 'rounded';
+    try { localStorage.setItem(QUICKSTART_PREFS_KEY, JSON.stringify({ role, style })); } catch (e) { /* ignore */ }
+    closeModal(dlg);
+    applyQuickStart(role, style);
+  });
+}
+
+function applyQuickStart(roleKey, style) {
+  const sp = currentSplat;
+  if (hasActiveSheetData()) createNewRosterSlot(sp, null, '');
+  const container = document.getElementById('splat-' + sp);
+  if (!container) return;
+
+  const abilities = { 0: [], 1: [], 2: [] };
+  const abiRe = new RegExp(`^${sp}_abi_([012])_(.+)$`);
+  container.querySelectorAll('.dots-container[data-id]').forEach(el => {
+    const m = el.dataset.id.match(abiRe);
+    if (m) abilities[m[1]].push({ id: el.dataset.id, name: m[2] });
+  });
+  const virtueIds = (sp === 'mortal' || sp === 'vampire')
+    ? Array.from(container.querySelectorAll(`.dots-container[data-id^="${sp}_adv_2_"]`)).map(el => el.dataset.id)
+    : [];
+
+  const q = buildQuickStart({ splat: sp, roleKey, style, abilities, virtueIds });
+  const state = captureCurrentState();
+  Object.assign(state.dots, q.dots);
+  const conceptKey = `${sp}_char_concept`;
+  if (conceptKey in state.inputs && !state.inputs[conceptKey].trim()) state.inputs[conceptKey] = q.role.label;
+
+  isRestoring = true;
+  restoreState(state);
+  switchSplat(sp);
+  isRestoring = false;
+  isSheetDirty = true;
+  saveNow();
+  updateGuideTally();
+
+  const guide = document.getElementById('guidePanel');
+  if (guide && !guide.classList.contains('open')) toggleGuide();
+  showToast(`${q.role.label} placed. Still to choose: ${q.next.join(', ')}.` + (q.notes.length ? ' ' + q.notes.join(' ') : ''));
+}
 
 function bindPrintDialog() {
   const dlg = document.getElementById('printDialog');

@@ -65,6 +65,10 @@
           <div class="dropdown-menu" id="moreOptionsMenu" role="menu">
             <div class="dropdown-group">
               <span class="dropdown-header">Sheet</span>
+              <button type="button" class="dropdown-item" id="quickStartMenuBtn" role="menuitem">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                Quick Start&hellip;
+              </button>
               <button type="button" class="dropdown-item" id="printSheetBtn" role="menuitem">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                 Print / Save as PDF&hellip;
@@ -174,6 +178,7 @@
             <option value="wraith_ferryman">[Legendary] Cassian of Stygia (Ferryman)</option>
           </optgroup>
         </select>
+        <button type="button" class="btn action-btn" id="quickStartBtn" title="Fill a new sheet's dots from a role in a few clicks">Quick Start</button>
       </div>
       </div>
 
@@ -537,8 +542,8 @@
       <h3 id="printDialogTitle">Print / Save as PDF</h3>
       <fieldset class="print-options">
         <legend>Layout</legend>
-        <label><input type="radio" name="printLayout" value="full" checked> <span><b>Full sheet</b><small>Each section starts on a new page.</small></span></label>
-        <label><input type="radio" name="printLayout" value="compact"> <span><b>Compact</b><small>Smaller text and no forced page breaks, to fit on fewer pages.</small></span></label>
+        <label><input type="radio" name="printLayout" value="full" checked> <span><b>Full sheet</b><small>Three pages: the sheet; Mechanics with Backgrounds &amp; Gear; Description &amp; History.</small></span></label>
+        <label><input type="radio" name="printLayout" value="compact"> <span><b>Compact</b><small>Two pages, smaller text.</small></span></label>
       </fieldset>
       <fieldset class="print-options">
         <legend>Include</legend>
@@ -549,6 +554,26 @@
       <div class="modal-actions">
         <button type="button" class="btn" id="printCancelBtn">Cancel</button>
         <button type="button" class="btn btn-accent" id="printGoBtn">Preview &amp; Print</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="quickStartDialog" class="modal-overlay no-print" aria-labelledby="quickStartTitle">
+    <div class="modal-content quickstart-content">
+      <h3 id="quickStartTitle">Quick Start</h3>
+      <p class="quickstart-intro">Pick a role and a style. The sheet places every Attribute and Ability dot for you. You still choose the powers, Backgrounds and Freebie Points that make the character yours.</p>
+      <fieldset class="quickstart-roles">
+        <legend>Role</legend>
+        <div class="quickstart-role-grid" id="quickStartRoles"></div>
+      </fieldset>
+      <fieldset class="print-options quickstart-styles">
+        <legend>Style</legend>
+        <div id="quickStartStyles"></div>
+      </fieldset>
+      <p class="print-note" id="quickStartNote"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="quickStartCancelBtn">Cancel</button>
+        <button type="button" class="btn btn-accent" id="quickStartGoBtn">Fill the sheet</button>
       </div>
     </div>
   </dialog>

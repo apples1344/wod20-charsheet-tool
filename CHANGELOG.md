@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.5.0
+
+**Quick Start (quick and dirty creation)**
+- Pick a role and a style, and the sheet places every Attribute and Ability priority dot for you, in the role's order. There are 12 roles: Bruiser, Face, Sneak, Scholar, Investigator, Survivor, Soldier, Mystic, Artist, Leader, Healer and Tech. The styles are Jack of all trades, Well-rounded and Specialist. Virtues and the fixed starting pools are set too: Humanity/Path and Willpower for Mortals and Vampires; Arete and Willpower for Mage; Willpower, Corpus and Pathos for Wraith.
+- What makes a character yours is left to you: powers, Backgrounds, Freebie Points, name and story. A message lists exactly what's left, and the Creation guide opens to track it.
+- Opens from the "Quick Start" button next to Samples, the ⋮ menu, or the Creation Points guide on a blank sheet. A filled sheet is never overwritten: a new roster slot is made.
+- The roles are this project's own generic types, not archetypes or text from the books. All 216 combinations of role, style and game line are unit-tested to give a legal starting sheet (all dots placed, nothing over, 0 Freebies used).
+
+**Security**
+- Share links get the same limits as imported files: at most 60 rows per table, dots capped at 10, text length capped. A crafted 24-character link could previously build 200,000 rows and freeze the page, and a bloated sheet was saved into the roster.
+- Compressed share links may unpack to at most 1 MB.
+- A portrait hosted on another website, arriving in someone else's link or file, is no longer loaded automatically. The portrait box asks first, because loading it shows that website your IP address.
+- New `vercel.json` sends security headers: no embedding in other sites (`frame-ancestors 'none'`, `X-Frame-Options`), `nosniff`, no referrer, and camera/microphone/location turned off. It contains no build settings.
+- Exported `.json` files now say "not official World of Darkness material", matching the Dark Pack Agreement wording.
+
+**Fixes**
+- The print dialog describes the current layouts (Full = 3 pages, Compact = 2).
+
 ## 1.4.0
 
 **Deploy**

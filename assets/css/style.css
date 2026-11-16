@@ -2329,3 +2329,11 @@ body[data-theme="parchment"] .tally-xp,
 body[data-theme="parchment"] .guide-tally-summary.has-xp,
 body[data-theme="parchment"] .tally-step.is-xp,
 body[data-theme="parchment"] .tally-step.is-xp .tally-step-dot { color: #1f4f8a; }
+
+/* Held-back remote portrait from someone else's link or file */
+.portrait-consent {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 12px; text-align: center; background: var(--card-bg, #1b1b1b); font-size: 12px; line-height: 1.4;
+}
+.portrait-consent p { margin: 0; max-width: 260px; }
+.portrait-consent-actions { display: flex; gap: 6px; }
