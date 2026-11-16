@@ -2,11 +2,12 @@ import { SAMPLE_CHARACTERS, SAMPLE_TIERS } from './sampleCharacters.js';
 import { preparePrintMirrors, clearPrintMirrors } from './print-prep.js';
 import { buildQuickStart, QUICK_ROLES, QUICK_STYLES } from './quickstart.js';
 import { WEREWOLF_FORMS, WOUND_LEVELS, HEALTH_PENALTIES, VAMPIRE_GENERATION } from './rules.js';
-import { computeCreation } from './creation.js';
+import { computeCreation, nextStepText } from './creation.js';
 import { SPLAT_GUIDES, DOT_SCALE_GUIDE_HTML } from './guide.js';
 import { resolveRoll, resolveInitiative } from './dice.js';
 import { createDiceStage, toneFor, bindDiceMotionToggle } from './dice3d.js';
 import { initUx, noteSaved, noteBackedUp } from './ux.js';
+import { initHints, renderGlossaryHtml } from './hints.js';
 import { hydrateContainers } from './hydrate.js';
 import { sanitizeImport, sanitizeState, MAX_IMPORT_BYTES, MAX_ROWS, MAX_LINK_BYTES, inflateCapped, holdRemotePortrait } from './import-guard.js';
 import {
@@ -20,6 +21,7 @@ const COMPACT_STORAGE_KEY = 'wod_sheet_compact_v1';
 const INIT_WOUND_STORAGE_KEY = 'wod_sheet_init_wound_v1';
 const ROLL_HISTORY_STORAGE_KEY = 'wod_sheet_roll_history_v1';
 const DICE3D_STORAGE_KEY = 'wod_sheet_dice3d_v1';
+const START_CARD_HIDDEN_KEY = 'wod_sheet_start_card_hidden_v1';
 const TALLY_OPEN_STORAGE_KEY = 'wod_sheet_creation_points_open_v1';
 const TALLY_FREEBIE_OPEN_KEY = 'wod_sheet_creation_freebies_open_v1';
 const ROLL_HISTORY_MAX = 25;
@@ -83,6 +85,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindDice3d();
   bindPrintDialog();
   bindQuickStart();
+  bindStartCard();
+  initHints({ getSplat: () => currentSplat, openGlossary: openGlossary });
   initUx({
     getSplat: () => currentSplat,
     getWound: () => getActiveWoundPenalty(currentSplat),
@@ -338,7 +342,7 @@ function bindControls() {
     document.getElementById('sampleCharSelect').value = '';
     clearSheet(false);
     isSheetDirty = false;
-    showToast('Sheet Cleared');
+    showToast('Character erased');
   });
 
   document.getElementById('hardResetBtn').addEventListener('click', () => {
@@ -597,6 +601,7 @@ function bindControls() {
       }
       isSheetDirty = true;
       scheduleAutoSave();
+      if (document.getElementById('startCard')?.hidden === false) updateStartCard(); // only while it shows
       if (e.target.id === currentSplat + '_char_name') {
         updateDocumentTitle();
       }
@@ -3263,6 +3268,7 @@ function updateGuideTally() {
   if (!c) return;
   tallyEl.innerHTML = renderCreationPoints(c);
   bindTallyToggles(tallyEl);
+  updateStartCard();
 }
 
 const STEP_ICON = { done: '✓', doing: '◐', over: '!', xp: '+', todo: '' };
@@ -3370,6 +3376,7 @@ function renderCreationPoints(c) {
       </div>`;
   }
 
+  const nextLine = esc(nextStepText(c));
   const steps = c.steps.map((st, i) => `<li class="tally-step is-${st.state}" title="${esc(st.hint)}"><span class="tally-step-dot">${STEP_ICON[st.state] || i + 1}</span><span>${st.label}</span></li>`).join('');
   const overCount = c.attributes.over + c.abilities.over + c.traits.reduce((s, t) => s + t.over, 0);
   let headline;
@@ -3391,6 +3398,7 @@ function renderCreationPoints(c) {
     <details class="guide-tally-details" data-store="${TALLY_OPEN_STORAGE_KEY}"${open(TALLY_OPEN_STORAGE_KEY, true) ? ' open' : ''}>
       <summary class="guide-tally-title"><span>Creation Points</span><span class="guide-tally-summary${headClass}">${headline}</span></summary>
       <ol class="tally-steps" aria-label="Creation steps">${steps}</ol>
+      ${nextLine ? `<p class="tally-next">${nextLine}</p>` : ''}
       ${!c.attributes.started && !c.abilities.started ? '<button type="button" class="btn btn-sm btn-accent tally-quickstart" data-action="quickstart">Quick Start: place the dots for me</button>' : ''}
       <p class="guide-tally-note">${note}</p>
       ${attrHtml}
@@ -3431,8 +3439,23 @@ function syncGuideTenDotMode() {
   }
 }
 
+// Open the Guide on its Glossary tab, scrolled to one term if given.
+function openGlossary(termId) {
+  const guide = document.getElementById('guidePanel');
+  if (guide && !guide.classList.contains('open')) toggleGuide();
+  setGuideTab('glossary');
+  if (!termId) return;
+  const item = document.getElementById('gloss-' + termId);
+  if (item) {
+    item.scrollIntoView({ block: 'center' });
+    item.classList.remove('search-flash');
+    void item.offsetWidth;
+    item.classList.add('search-flash');
+  }
+}
+
 function setGuideTab(tabName) {
-  activeGuideTab = tabName === 'scale' ? 'scale' : 'creation';
+  activeGuideTab = ['scale', 'glossary'].includes(tabName) ? tabName : 'creation';
   document.querySelectorAll('.guide-tab-btn').forEach(btn => {
     const isActive = btn.dataset.tab === activeGuideTab;
     btn.classList.toggle('active', isActive);
@@ -3449,7 +3472,11 @@ function updateGuidePanel() {
   const tally = document.getElementById('guideTally');
   const splatNames = { mortal: 'Mortal', vampire: 'Vampire', werewolf: 'Werewolf', mage: 'Mage', changeling: 'Changeling', wraith: 'Wraith' };
 
-  if (activeGuideTab === 'scale') {
+  if (activeGuideTab === 'glossary') {
+    if (title) title.textContent = 'Glossary';
+    if (tally) tally.style.display = 'none';
+    if (content) content.innerHTML = renderGlossaryHtml(currentSplat);
+  } else if (activeGuideTab === 'scale') {
     if (title) title.textContent = 'Dot Rating Scale';
     if (tally) tally.style.display = 'none';
     if (content) {
@@ -3700,15 +3727,18 @@ function executeWodRoll() {
 
   trayEl.innerHTML = dice.length
     ? dice.map(d => {
+        // Each kind of die has a symbol and a border style as well as a colour.
         let cls = 'die-miss';
+        let mark = '';
+        let what = 'miss';
         let bonusTag = '';
         if (d.val === 10) {
-          cls = 'die-ten';
-          if (specialty) bonusTag = '<span class="die-bonus-tag" title="Specialty Double Success">++</span>';
+          cls = 'die-ten'; mark = '★'; what = specialty ? 'a 10: two successes with your Specialty' : 'a 10: success';
+          if (specialty) bonusTag = '<span class="die-bonus-tag" aria-hidden="true">++</span>';
         }
-        else if (d.val >= difficulty) cls = 'die-success';
-        else if (d.val === 1) cls = 'die-one';
-        return `<span class="die-badge ${cls}">${d.val}${bonusTag}</span>`;
+        else if (d.val >= difficulty) { cls = 'die-success'; mark = '✓'; what = 'success'; }
+        else if (d.val === 1) { cls = 'die-one'; mark = '✗'; what = 'a 1: cancels one success'; }
+        return `<span class="die-badge ${cls}" title="${d.val}, ${what}" aria-label="${d.val}, ${what}">${d.val}${mark ? `<span class="die-mark" aria-hidden="true">${mark}</span>` : ''}${bonusTag}</span>`;
       }).join('')
     : '<span style="font-size:11px; color:#888;">No dice rolled (0 effective pool)</span>';
 
@@ -3835,6 +3865,46 @@ const PRINT_PREFS_KEY = 'wod_sheet_print_prefs_v1';
 
 // ---------- Quick Start: fill a new sheet's dots from a role ----------
 const QUICKSTART_PREFS_KEY = 'wod_sheet_quickstart_v1';
+
+// First-run card: three ways to begin, shown while the active sheet is blank.
+function startCardDismissed() {
+  try { return localStorage.getItem(START_CARD_HIDDEN_KEY) === '1'; } catch (e) { return false; }
+}
+
+function updateStartCard() {
+  const card = document.getElementById('startCard');
+  if (!card) return;
+  const hide = startCardDismissed() || hasActiveSheetData();
+  if (card.hidden !== hide) card.hidden = hide;
+}
+
+function bindStartCard() {
+  const card = document.getElementById('startCard');
+  if (!card) return;
+  document.getElementById('startCardClose')?.addEventListener('click', () => {
+    try { localStorage.setItem(START_CARD_HIDDEN_KEY, '1'); } catch (e) { /* storage unavailable: hide for this visit */ }
+    card.hidden = true;
+  });
+  card.addEventListener('click', (e) => {
+    const opt = e.target.closest('[data-start]');
+    if (!opt) return;
+    const how = opt.dataset.start;
+    if (how === 'quick') {
+      openQuickStart();
+    } else if (how === 'sample') {
+      const sel = document.getElementById('sampleCharSelect');
+      if (!sel) return;
+      sel.scrollIntoView({ block: 'center' });
+      sel.focus();
+      try { sel.showPicker(); } catch (err) { /* older browsers: focus is enough */ }
+    } else if (how === 'scratch') {
+      const guide = document.getElementById('guidePanel');
+      if (guide && !guide.classList.contains('open')) toggleGuide();
+      document.getElementById(currentSplat + '_char_name')?.focus({ preventScroll: true });
+    }
+  });
+  updateStartCard();
+}
 
 function openQuickStart() {
   document.getElementById('moreOptionsMenu')?.classList.remove('show');

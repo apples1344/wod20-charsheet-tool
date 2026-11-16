@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.7.0
+
+Help for first-time players that stays out of the way of experienced ones. One switch, **⋮ → Beginner Hints**, turns the on-sheet help off (and back on); the Glossary tab is always there.
+
+**Glossary**
+- A new **Glossary** tab in the Guide: 29 terms in plain language (Freebie Points, Priorities, Specialty, Difficulty, Botch, Wound penalty, Storyteller approval…), plus the terms of the game line you have open.
+- A small, faint **?** beside the headings and labels it explains (Attributes, Backgrounds, Willpower, Health, Blood Pool, Spheres, Arete, Glamour, Pathos and so on): 13 to 17 per sheet. Click it for a short definition; "All terms in the Guide" jumps to that entry. Clicking the ? on a rollable pool never adds it to the dice.
+
+**Trait hints**
+- Hover over a trait name for a one-line hint after a short pause (about two-thirds of a second, so quick clicking never triggers it). On phones the same hint shows in the long-press roll menu.
+- Every one of the 261 fixed traits across the six sheets has one, including words that mean different things per line (Time in Mage vs Changeling, Nature as a Changeling Realm).
+- All definitions and hints are this project's own short wording, not text from the books.
+
+**Creation guide**
+- A "Next:" line under the steps says what to do now: "Next: Attributes. Split 6 / 4 / 3 dots across Physical, Social and Mental, in any order", "Next: Advantages. Backgrounds 5 left.", "Next: spend the last 3 Freebie Points…". It disappears when creation is done or the sheet is past it into XP.
+
+**Dice results don't rely on colour**
+- Each die shows a symbol and its own border: ✓ success (solid), ★ 10 (double), ✗ 1 (dashed), miss (dotted). Screen readers hear "7, success" / "1, cancels one success".
+- The 3D dice show the same symbols under each die once they land. The full-screen roller lists them in the result line too.
+- A one-line legend sits under the result (hidden with Beginner Hints off).
+
+**Plain labels for the dangerous buttons**
+- "Clear Active Sheet" is now **Erase this character…**, and its dialog says your other characters are kept.
+- "Reset Entire Website" is now **Erase all characters & settings…**, and its dialog says exactly what goes and points to Export Roster first.
+
+## 1.6.0
+
+**Layout**
+- Only the top row (title, section tabs, actions) stays pinned while you scroll. The setup row (Game Line, Character, Samples, Quick Start) now scrolls with the page, so on a laptop the pinned area drops from about 145px to 92px.
+- On wide screens the pinned bars line up with the sheet's column. On mid-size screens (769–1180px) the top bar stays on one line; below 960px Share URL becomes an icon.
+- The setup row fits on one line from 1000px up: shorter labels ("Character" instead of "Character Slot"), and the Samples label is kept for screen readers only, since the list already says "Load a sample character…".
+- Phones: the Dice and Guide buttons join the bottom tab bar instead of floating over the sheet. The dice panel and Guide open just above the bar, and toasts no longer sit on top of the buttons.
+
+**New players**
+- A blank sheet shows a "Start a character" card with three choices: Quick Start, Load a sample, or From scratch (opens the Guide and puts the cursor in Name). It hides as soon as the sheet has anything on it, returns on a new blank slot, and × hides it for good.
+
+**Polish**
+- Empty Specialty slots no longer show a cut-off "Spe" on every row. With a mouse they appear when you point at the row; on touch screens the full word "Spec" fits.
+- Section rules are lighter and fade at the ends.
+- The save badge says "Saved just now" and then "All changes saved", instead of "Saved 11 min ago", which read as if something had gone wrong. The exact time is in its tooltip.
+- Toasts appear above the Dice/Guide dock on desktop instead of covering it.
+- Parchment theme: the wound label in the pinned strip ("Healthy") is now readable.
+
+Printing is unchanged: all 18 samples still print 3 pages (Full) and 2 pages (Compact) on A4 and Letter.
+
 ## 1.5.1
 
 - Dice: new "Animate" switch in the sheet's roller and "Animate dice" on the full-screen page (one shared setting). It starts from the device's reduce-motion setting, which is why dice tumbled on some devices and simply appeared on others; turn it on to always see the tumble.

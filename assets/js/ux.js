@@ -2,6 +2,8 @@
 // quick rolls), "/" search, right-click / long-press roll menu, sliding section tabs,
 // "saved x ago" badge and the backup reminder. app.js passes in what these need.
 
+import { hintsOn, traitHintFor } from './hints.js';
+
 const LAST_BACKUP_KEY = 'wod_sheet_last_backup_v1';
 const EDITS_SINCE_BACKUP_KEY = 'wod_sheet_edits_since_backup_v1';
 const BACKUP_NUDGE_EDITS = 150;
@@ -278,6 +280,12 @@ function initRollMenu(api) {
     const label = name ? (name.value || name.textContent || '').trim() : 'Trait';
     const spec = row?.querySelector('.trait-spec-input')?.value.trim();
     $('rollMenuTitle').textContent = label || 'Trait';
+    const hintEl = $('rollMenuHint');
+    if (hintEl) {
+      const hint = hintsOn() && row?.matches('.trait-row') ? traitHintFor(label, api.getSplat()) : '';
+      hintEl.textContent = hint;
+      hintEl.hidden = !hint;
+    }
     menu.querySelector('[data-act="spec"]').hidden = !spec;
     if (spec) menu.querySelector('[data-act="spec"]').textContent = `Roll with Specialty (${spec})`;
     menu.hidden = false;
@@ -378,20 +386,11 @@ export function noteBackedUp() {
   document.getElementById('backupNudge')?.remove();
 }
 
-function relTime(ms) {
-  const s = Math.round((Date.now() - ms) / 1000);
-  if (s < 45) return 'just now';
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h} h ago`;
-  return new Date(ms).toLocaleDateString();
-}
-
 function tickSavedLabel() {
   const badge = $('autosaveIndicator');
   if (!badge || !lastSavedAt || badge.classList.contains('failed') || !badge.classList.contains('saved')) return;
-  badge.textContent = `Saved ${relTime(lastSavedAt)}`;
+  // "Saved 11 min ago" read as stale when nothing had changed since; the time is in the tooltip.
+  badge.textContent = (Date.now() - lastSavedAt) < 45000 ? 'Saved just now' : 'All changes saved';
   badge.title = `Saved in this browser at ${new Date(lastSavedAt).toLocaleTimeString()}`;
 }
 

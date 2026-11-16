@@ -269,3 +269,32 @@ export function computeCreation(state) {
 
   return { splat: sp, attributes, abilities, traits, pools, freebies, xp, steps };
 }
+
+/**
+ * One plain sentence naming the next thing to do, for the Creation guide.
+ * Follows the usual order (Attributes, Abilities, Advantages, Freebies) and leaves the
+ * name for last. Empty once creation is finished or the sheet has gone past it into XP.
+ */
+export function nextStepText(c) {
+  if (!c) return '';
+  if (c.xp && c.xp.beyond) return '';
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const block = (b, what, groups) => {
+    if (!b.started) return `Next: ${what}. Split ${b.priorities.join(' / ')} dots across ${groups}, in any order.`;
+    if (b.left > 0) return `Next: ${what}. ${plural(b.left, 'dot', 'dots')} left to place.`;
+    return '';
+  };
+  const attr = block(c.attributes, 'Attributes', 'Physical, Social and Mental');
+  if (attr) return attr;
+  const abil = block(c.abilities, 'Abilities', 'Talents, Skills and Knowledges');
+  if (abil) return abil;
+  const open = c.traits.filter(t => t.left > 0);
+  if (open.length) {
+    return `Next: Advantages. ${open.map(t => `${t.label} ${t.left}`).join(', ')} left.`;
+  }
+  const f = c.freebies;
+  if (f.used < f.budget) {
+    return `Next: spend ${f.used ? 'the last ' : ''}${plural(f.left, 'Freebie Point', 'Freebie Points')} on anything you like.`;
+  }
+  return '';
+}

@@ -359,3 +359,219 @@ body[data-theme="parchment"] {
   @media (max-width: 480px) { .quickstart-styles > div { grid-template-columns: 1fr; } }
   .tally-quickstart { margin: 4px 0 8px; }
 }
+
+/* ==========================================================================
+   1.6 layout pass
+   - Only the top row (title, section tabs, actions) stays pinned; the setup row
+     (game line, slot, samples) scrolls with the page, so less of the screen is chrome.
+   - Pinned bars line up with the sheet on wide screens.
+   - Phones: the Dice and Guide buttons join the bottom tab bar instead of floating over the sheet.
+   ========================================================================== */
+@media screen {
+  /* setup row, now outside the pinned header */
+  .app-bar-bottom, body[data-theme="parchment"] .app-bar-bottom {
+    display: flex; justify-content: center; background: transparent; border: 0;
+    padding: 16px 20px 0;
+  }
+  .context-strip { max-width: 100%; }
+  .context-strip #sampleCharSelect { max-width: 250px; text-overflow: ellipsis; }
+  #quickStartBtn { white-space: nowrap; }
+
+  /* Specialty: an empty one is invisible until you point at its row (on devices with a mouse). */
+  @media (hover: hover) and (pointer: fine) {
+    .trait-spec-input:placeholder-shown:not(:focus) { opacity: 0; }
+  }
+  @media (pointer: coarse) {
+    .trait-spec-input:placeholder-shown { width: 34px; padding: 1px 2px; }
+  }
+
+  /* headings: lighter rules that fade at the ends */
+  .wod-divider {
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--text-color) 14%, var(--text-color) 86%, transparent);
+  }
+  .section-title { border-bottom: 1px solid color-mix(in srgb, var(--text-color) 55%, transparent); }
+
+  /* toasts sit above the dock instead of on top of it */
+  .toast-container, #toastContainer[popover] { bottom: 74px; }
+}
+
+@media screen and (min-width: 769px) {
+  .sheet-wrapper { margin-top: 18px; }
+  .context-strip { gap: 8px; padding-left: 14px; }
+  .context-strip .context-divider { margin: 0; }
+  .context-strip #sampleCharSelect { max-width: 196px; }
+  .context-strip .roster-select { max-width: 160px; }
+  .sample-context .control-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+/* wide screens: pinned bars share the sheet's 960px column */
+@media screen and (min-width: 1100px) {
+  .app-bar-top { padding-left: max(20px, calc((100vw - 960px) / 2)); padding-right: max(20px, calc((100vw - 960px) / 2)); }
+}
+
+@media screen and (max-width: 768px) {
+  .app-bar-bottom, body[data-theme="parchment"] .app-bar-bottom { padding: 8px 8px 0; }
+  .context-strip .form-select, .context-strip #sampleCharSelect { max-width: none; }
+
+  /* one bottom bar: section tabs on the left, Dice and Guide on the right */
+  .quick-nav { padding-right: 118px; }
+  .quick-nav-btn { padding: 9px 2px; font-size: 12px; }
+  .floating-dock, body[data-theme="parchment"] .floating-dock {
+    left: auto; right: 0; bottom: 0; z-index: 1600;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom)) 0;
+    background: transparent; border: 0; border-radius: 0; box-shadow: none;
+    backdrop-filter: none; -webkit-backdrop-filter: none;
+  }
+  .floating-dock .dock-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .floating-dock .dock-btn { height: 36px; padding: 0 9px; gap: 5px; }
+  .dice-panel, .guide-panel { bottom: calc(60px + env(safe-area-inset-bottom)); max-height: calc(100dvh - 80px); }
+  .toast-container, #toastContainer[popover] { bottom: calc(70px + env(safe-area-inset-bottom)); }
+  .update-banner, .backup-nudge { bottom: calc(66px + env(safe-area-inset-bottom)); }
+  body { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+}
+
+/* ---------- first-run card ---------- */
+@media screen {
+  .start-card {
+    max-width: 960px; margin: 18px auto 0; padding: 16px 18px 18px;
+    border: 1px solid var(--hairline-strong); border-radius: var(--r-lg);
+    background:
+      radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent-color) 16%, transparent), transparent 60%),
+      var(--card-bg);
+    box-shadow: var(--shadow-1);
+  }
+  .start-card[hidden] { display: none; }
+  .start-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .start-card-head h2 { font-family: var(--font-serif); font-size: 17px; letter-spacing: 1px; margin: 0; color: var(--text-color); }
+  .start-card-close {
+    width: 30px; height: 30px; border: 0; border-radius: 50%; background: transparent;
+    color: var(--ink-muted); font-size: 20px; line-height: 1; cursor: pointer;
+  }
+  .start-card-close:hover { background: var(--surface-2); color: var(--text-color); }
+  .start-card-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .start-option {
+    display: flex; flex-direction: column; gap: 4px; text-align: left;
+    padding: 12px 14px; border-radius: var(--r-md);
+    border: 1px solid var(--hairline); background: var(--surface-1); color: var(--text-color);
+    font: inherit; cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s var(--ease-out);
+  }
+  .start-option strong { font-size: 13.5px; }
+  .start-option span { font-size: 12px; line-height: 1.4; color: var(--ink-muted); }
+  .start-option:hover { border-color: var(--accent-border); background: var(--surface-2); }
+  .start-option:active { transform: scale(0.99); }
+  .start-option:focus-visible, .start-card-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .start-option[data-start="quick"] { border-color: color-mix(in srgb, var(--accent-border) 70%, transparent); }
+  .start-card:not([hidden]) + .sheet-wrapper { margin-top: 14px; }
+  @media (max-width: 768px) {
+    .start-card { margin: 10px 8px 0; padding: 12px; }
+    .start-card-options { grid-template-columns: 1fr; gap: 6px; }
+    .start-option { padding: 10px 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .start-option { transition: none; } }
+}
+
+/* ---------- mid-size screens: keep the top bar on one line ---------- */
+@media screen and (min-width: 769px) and (max-width: 1180px) {
+  .app-bar-top { gap: 12px; }
+  .app-brand { gap: 8px; min-width: 0; }
+  .app-brand h1 { font-size: 14px; letter-spacing: 1.6px; white-space: nowrap; }
+  .autosave-badge, .app-top-actions .action-btn { white-space: nowrap; }
+}
+@media screen and (min-width: 769px) and (max-width: 960px) {
+  .app-brand h1 { font-size: 13px; letter-spacing: 1px; }
+  .quick-nav-btn { padding: 6px 10px; }
+  #shareUrlBtn { width: 34px; padding: 0; }
+  #shareUrlBtn .share-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+@media screen {
+  body[data-theme="parchment"] .mini-wound { color: #2e6b3a; }
+  body[data-theme="parchment"] .mini-wound.is-hurt { color: #8a5a00; }
+  body[data-theme="parchment"] .mini-wound.is-incap { color: #a01d12; }
+}
+@media screen and (min-width: 769px) and (max-width: 999px) {
+  .context-strip { justify-content: center; border-radius: var(--r-lg); row-gap: 4px; padding: 5px 8px; }
+  .context-strip .context-divider { display: none; }
+  .sheet-wrapper, .start-card { margin-left: 12px; margin-right: 12px; }
+}
+
+/* ==========================================================================
+   1.7 help for new players, out of the way for everyone else
+   ========================================================================== */
+@media screen {
+  /* "?" beside headings: small and faint until you point at it */
+  .term-help {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 15px; height: 15px; margin-left: 6px; padding: 0; vertical-align: 1px;
+    border: 1px solid currentColor; border-radius: 50%; background: transparent;
+    color: inherit; opacity: 0.38; cursor: help;
+    font: 700 9.5px/1 var(--font-sans); letter-spacing: 0; text-transform: none;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+  }
+  .term-help:hover, .term-help:focus-visible, .term-help[aria-expanded="true"] { opacity: 1; background: var(--surface-2); }
+  .term-help:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  @media (pointer: coarse) {
+    /* bigger tap area without a bigger mark */
+    .term-help { position: relative; }
+    .term-help::after { content: ""; position: absolute; inset: -9px; }
+  }
+  body.hints-off .term-help, body.hints-off .dice-legend { display: none; }
+
+  .term-pop {
+    position: fixed; z-index: 3600; width: min(300px, calc(100vw - 16px));
+    padding: 11px 13px 10px; border-radius: var(--r-md);
+    background: var(--card-bg); color: var(--text-color);
+    border: 1px solid var(--hairline-strong); box-shadow: var(--shadow-2);
+    font-family: var(--font-sans); text-align: left; text-transform: none; letter-spacing: 0;
+  }
+  .term-pop[hidden] { display: none; }
+  .term-pop-title { margin: 0 0 4px; font-weight: 700; font-size: 13px; }
+  .term-pop-text { margin: 0 0 8px; font-size: 12.5px; line-height: 1.45; color: var(--text-color); opacity: 0.88; }
+  .term-pop-more { border: 0; padding: 0; background: none; color: var(--ink-muted); font: inherit; font-size: 11.5px; text-decoration: underline; cursor: pointer; }
+  .term-pop-more:hover, .term-pop-more:focus-visible { color: var(--text-color); }
+
+  .trait-tip {
+    position: fixed; z-index: 3550; max-width: 280px; pointer-events: none;
+    padding: 6px 9px; border-radius: var(--r-sm);
+    background: var(--card-bg); color: var(--text-color);
+    border: 1px solid var(--hairline-strong); box-shadow: var(--shadow-1);
+    font: 12px/1.4 var(--font-sans);
+    animation: tipIn 0.12s ease-out;
+  }
+  .trait-tip[hidden] { display: none; }
+  @keyframes tipIn { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
+  .roll-menu-hint { margin: -2px 10px 6px; max-width: 240px; font-size: 11.5px; line-height: 1.4; color: var(--ink-muted); }
+  .roll-menu-hint[hidden] { display: none; }
+
+  /* Guide: next step, Glossary tab */
+  .tally-next {
+    margin: 2px 0 8px; padding: 7px 10px; border-radius: var(--r-sm);
+    background: color-mix(in srgb, var(--accent-color) 14%, transparent);
+    border-left: 3px solid var(--accent-border);
+    font-size: 12.5px; line-height: 1.4; font-weight: 600;
+  }
+  .glossary { font-size: 12.5px; line-height: 1.45; }
+  .glossary-intro, .glossary-foot { color: var(--ink-muted); font-size: 12px; margin: 0 0 10px; }
+  .glossary-foot { margin: 14px 0 4px; }
+  .glossary-group { font-family: var(--font-serif); font-size: 13px; letter-spacing: 1px; text-transform: uppercase; margin: 14px 0 6px; border-bottom: 1px solid var(--hairline-strong); padding-bottom: 3px; }
+  .glossary-list { margin: 0; }
+  .glossary-item { padding: 5px 4px; border-radius: var(--r-sm); }
+  .glossary-item dt { font-weight: 700; }
+  .glossary-item dd { margin: 1px 0 0; color: var(--text-color); opacity: 0.85; }
+
+  /* dice: symbol + border style as well as colour */
+  .die-mark { position: absolute; right: 1px; bottom: -1px; font-size: 8.5px; line-height: 1; font-weight: 900; }
+  .die-badge.die-ten { border-style: double; border-width: 3px; }
+  .die-badge.die-one { border-style: dashed; }
+  .die-badge.die-miss { border-style: dotted; }
+  .dice-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 0; font-size: 11px; color: var(--ink-muted); }
+  .dice-legend .dl-ok { color: #8fd19e; }
+  .dice-legend .dl-ten { color: #ffd633; }
+  .dice-legend .dl-one { color: #ff7b7b; }
+  body[data-theme="parchment"] .dice-legend .dl-ok { color: #1b5729; }
+  body[data-theme="parchment"] .dice-legend .dl-ten { color: #6e4e00; }
+  body[data-theme="parchment"] .dice-legend .dl-one { color: #8c1919; }
+
+  @media (prefers-reduced-motion: reduce) { .trait-tip { animation: none; } .term-help { transition: none; } }
+}
+@media print { .term-help, .term-pop, .trait-tip { display: none !important; } }

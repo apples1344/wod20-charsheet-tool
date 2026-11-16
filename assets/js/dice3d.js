@@ -83,6 +83,8 @@ export const DICE_TONES = {
   miss: { body: [52, 52, 58], ink: '#d8d8dc' },
   neutral: { body: [112, 20, 28], ink: '#f4ead8' }
 };
+export const TONE_MARKS = { success: '✓', ten: '★', one: '✗' };
+const TONE_MARK_COLOURS = { success: '#9fe0ae', ten: '#ffd56b', one: '#ff8a80' };
 /** Colour group for a rolled value at a difficulty (1s, 10s, successes, misses). */
 export function toneFor(val, difficulty) {
   if (val === 1) return 'one';
@@ -261,6 +263,21 @@ export function createDiceStage(canvas, opts = {}) {
       ctx.beginPath();
       ctx.arc(center[0], center[1], 1.22 * focal / camDist, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.restore();
+    }
+
+    // Not colour alone: a symbol under each landed die (✓ success, ★ 10, ✗ 1).
+    const mark = TONE_MARKS[d.tone];
+    if (d.revealT > 0 && mark) {
+      const unit = focal / camDist;
+      const center = project(pos);
+      ctx.save();
+      ctx.globalAlpha = d.revealT;
+      ctx.font = `bold ${Math.max(10, Math.round(0.5 * unit))}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = TONE_MARK_COLOURS[d.tone];
+      ctx.fillText(mark, center[0], center[1] + 1.38 * unit);
       ctx.restore();
     }
   }

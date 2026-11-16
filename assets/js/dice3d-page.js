@@ -1,6 +1,6 @@
 // Standalone 3D roller page (dice3d.html). Same dice rules as the sheet (dice.js).
 import { resolveRoll } from './dice.js';
-import { createDiceStage, toneFor, bindDiceMotionToggle } from './dice3d.js';
+import { createDiceStage, toneFor, bindDiceMotionToggle, TONE_MARKS } from './dice3d.js';
 
 const HISTORY_KEY = 'wod_sheet_3d_history_v1';
 const $ = (id) => document.getElementById(id);
@@ -61,7 +61,7 @@ async function roll() {
   $('d3Outcome').textContent = r.outcomeLabel;
   $('d3Outcome').className = 'd3-outcome ' + r.outcomeClass;
   const mods = [specialty && 'Specialty', willpower && 'Willpower'].filter(Boolean).join(', ');
-  $('d3Detail').textContent = `${r.effectivePool}d10 at difficulty ${r.difficulty}${mods ? ' · ' + mods : ''} · [${r.dice.map(d => d.val).join(', ')}]`;
+  $('d3Detail').textContent = `${r.effectivePool}d10 at difficulty ${r.difficulty}${mods ? ' · ' + mods : ''} · ${r.dice.map(d => d.val + (TONE_MARKS[toneFor(d.val, r.difficulty)] || '')).join('  ')}`;
   history.unshift({ at: Date.now(), cls: r.outcomeClass, text: `${r.effectivePool}d10 diff ${r.difficulty}: ${r.outcomeLabel}` });
   history = history.slice(0, 20);
   saveHistory();

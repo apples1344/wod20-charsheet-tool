@@ -27,6 +27,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .d3-canvas { width: 100%; flex: 1; min-height: 360px; border-radius: 12px; border: 1px solid var(--line); display: block; background: #0d0708; }
 .d3-result { min-height: 52px; }
 .d3-outcome { display: block; font-family: var(--serif); font-size: 24px; }
+.d3-legend { display: block; color: var(--muted); font-size: 11.5px; margin-top: 4px; }
 .d3-detail { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
 .outcome-success { color: var(--ok); }
 .outcome-phenomenal { color: var(--gold); }
