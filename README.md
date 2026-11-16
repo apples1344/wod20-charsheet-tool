@@ -53,7 +53,7 @@ No dependencies. Serve the folder with any static server.
 
 ```
 npm test        # unit tests (Node 18+)
-npm run build   # re-stamp sw.js cache name; run this before every deploy
+npm run stamp   # re-stamp sw.js cache name; run this before every deploy
 ```
 
 ## Rules Data

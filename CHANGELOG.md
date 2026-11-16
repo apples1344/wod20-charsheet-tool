@@ -2,6 +2,9 @@
 
 ## 1.4.0
 
+**Deploy**
+- The service-worker stamp script is now `npm run stamp` (was `npm run build`). With a `build` script, Vercel runs it as a framework build and then fails looking for a `public` folder; without one it serves the folder as static files.
+
 **Creation Points: Freebies, then XP**
 - While a character fits its starting dots and Freebie Points, the counter shows Freebies as before ("12 / 15 Freebies").
 - Once past the Freebies, it switches to an XP estimate: "≈ 113 XP beyond creation" in the header, `+N XP` on each Attribute, Ability and Advantage group, an XP step in the step bar, and an "XP beyond creation" breakdown in place of the Freebie list. It no longer shows numbers like "305 Freebies over".

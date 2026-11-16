@@ -1,6 +1,7 @@
 // Derives the service-worker cache name from the content of the shipped files,
 // so a deploy can never serve a stale mix of old and new assets.
-// Usage: npm run build   (run before deploying)
+// Usage: npm run stamp   (run before deploying). Not named "build" on purpose: Vercel
+// treats a build script as a framework build and then looks for a "public" folder.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
