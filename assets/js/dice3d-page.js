@@ -1,6 +1,6 @@
 // Standalone 3D roller page (dice3d.html). Same dice rules as the sheet (dice.js).
 import { resolveRoll } from './dice.js';
-import { createDiceStage, toneFor } from './dice3d.js';
+import { createDiceStage, toneFor, bindDiceMotionToggle } from './dice3d.js';
 
 const HISTORY_KEY = 'wod_sheet_3d_history_v1';
 const $ = (id) => document.getElementById(id);
@@ -96,6 +96,7 @@ if (params.has('pool')) poolEl.value = params.get('pool');
 if (params.has('diff')) diffEl.value = params.get('diff');
 $('d3Spec').checked = params.get('spec') === '1';
 $('d3Wp').checked = params.get('wp') === '1';
+bindDiceMotionToggle($('d3Motion'));
 
 try {
   const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');

@@ -96,8 +96,32 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const mixRgb = (a, b, t) => [0, 1, 2].map(i => Math.round(lerp(a[i], b[i], t)));
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
-function prefersReducedMotion() {
+// Tumble animation: follows the system's reduce-motion setting until the person picks
+// on or off themselves. Shared by the sheet's roller and the full-screen page.
+const MOTION_KEY = 'wod_sheet_dice_motion_v1';
+
+export function systemReducesMotion() {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+/** true / false when chosen, null when following the system. */
+export function getDiceMotionChoice() {
+  try {
+    const v = localStorage.getItem(MOTION_KEY);
+    return v === '1' ? true : v === '0' ? false : null;
+  } catch (e) { return null; }
+}
+export function setDiceMotionChoice(on) {
+  try { localStorage.setItem(MOTION_KEY, on ? '1' : '0'); } catch (e) { /* storage unavailable */ }
+}
+export function diceAnimate() {
+  const choice = getDiceMotionChoice();
+  return choice === null ? !systemReducesMotion() : choice;
+}
+/** Wire a checkbox to the setting. */
+export function bindDiceMotionToggle(input) {
+  if (!input) return;
+  input.checked = diceAnimate();
+  input.addEventListener('change', () => setDiceMotionChoice(input.checked));
 }
 
 /** Orientation that shows `value` toward the viewer, upright, with a little tilt. */
@@ -294,7 +318,7 @@ export function createDiceStage(canvas, opts = {}) {
     const { slots, focal: f } = layout(Math.max(1, list.length));
     focal = f;
     const now = performance.now();
-    const still = prefersReducedMotion() || o.instant;
+    const still = !diceAnimate() || o.instant;
     dice = list.map((v, i) => {
       const to = slots[i];
       const fromSide = rng() < 0.5 ? -1 : 1;

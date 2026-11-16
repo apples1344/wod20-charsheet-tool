@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.1
+
+- Dice: new "Animate" switch in the sheet's roller and "Animate dice" on the full-screen page (one shared setting). It starts from the device's reduce-motion setting, which is why dice tumbled on some devices and simply appeared on others; turn it on to always see the tumble.
+- Quick tabs (Traits, Mechanics, Gear, Bio) no longer land with the section title hidden under the name/health strip. On phones, where that strip can wrap to two lines, the page re-checks once scrolling stops.
+
 ## 1.5.0
 
 **Quick Start (quick and dirty creation)**

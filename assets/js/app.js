@@ -5,7 +5,7 @@ import { WEREWOLF_FORMS, WOUND_LEVELS, HEALTH_PENALTIES, VAMPIRE_GENERATION } fr
 import { computeCreation } from './creation.js';
 import { SPLAT_GUIDES, DOT_SCALE_GUIDE_HTML } from './guide.js';
 import { resolveRoll, resolveInitiative } from './dice.js';
-import { createDiceStage, toneFor } from './dice3d.js';
+import { createDiceStage, toneFor, bindDiceMotionToggle } from './dice3d.js';
 import { initUx, noteSaved, noteBackedUp } from './ux.js';
 import { hydrateContainers } from './hydrate.js';
 import { sanitizeImport, sanitizeState, MAX_IMPORT_BYTES, MAX_ROWS, MAX_LINK_BYTES, inflateCapped, holdRemotePortrait } from './import-guard.js';
@@ -658,6 +658,19 @@ function syncAppBarOffset() {
   return height;
 }
 
+// The mini-header (name, health, Willpower) is fixed under the app bar once the identity
+// block scrolls away, so every section below Traits lands beneath it. It may still be
+// hidden when a jump starts; measure it anyway (no paint happens between the two lines).
+function miniHeaderHeight() {
+  const mini = document.getElementById('miniHeader');
+  if (!mini) return 0;
+  if (!mini.hidden) return mini.offsetHeight;
+  mini.hidden = false;
+  const h = mini.offsetHeight;
+  mini.hidden = true;
+  return h;
+}
+
 function getSectionHeaderMap(activeContainer) {
   const headers = Array.from(activeContainer.querySelectorAll('.wod-header'));
   return {
@@ -678,7 +691,8 @@ function updateActiveQuickNav() {
   const active = document.getElementById('splat-' + currentSplat);
   if (!active) return;
   const barHeight = syncAppBarOffset();
-  const threshold = barHeight + 48;
+  const mini = document.getElementById('miniHeader');
+  const threshold = barHeight + (mini && !mini.hidden ? mini.offsetHeight : 0) + 48;
   const map = getSectionHeaderMap(active);
   const order = ['traits', 'mechanics', 'gear', 'bio'];
   let currentSection = 'traits';
@@ -705,8 +719,19 @@ function jumpToSection(section) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
-  const top = target.getBoundingClientRect().top + window.scrollY - barHeight - 20;
+  const top = target.getBoundingClientRect().top + window.scrollY - barHeight - miniHeaderHeight() - 16;
   window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+
+  // The mini-header fills in (and can wrap to two lines on phones) only once it shows,
+  // so check again when the scroll settles and nudge the title clear of it.
+  const settle = () => {
+    const mini = document.getElementById('miniHeader');
+    const cover = Math.max(barHeight, mini && !mini.hidden ? mini.getBoundingClientRect().bottom : 0);
+    const gap = target.getBoundingClientRect().top - cover;
+    if (gap < 8) window.scrollBy({ top: gap - 12, behavior: 'smooth' });
+  };
+  if ('onscrollend' in window) window.addEventListener('scrollend', settle, { once: true });
+  else setTimeout(settle, 700);
 }
 
 function hasActiveSheetData() {
@@ -3985,6 +4010,7 @@ function bindDice3d() {
       if (!toggle.checked) play3dRoll([]);
     });
   }
+  bindDiceMotionToggle(document.getElementById('dice3dMotionToggle'));
   const link = document.getElementById('dice3dPageLink');
   if (link) {
     link.addEventListener('click', () => {
