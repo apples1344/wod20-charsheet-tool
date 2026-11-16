@@ -1,8 +1,30 @@
-import { SAMPLE_CHARACTERS } from './sampleCharacters.js';
+import { SAMPLE_CHARACTERS, SAMPLE_TIERS } from './sampleCharacters.js';
+import { preparePrintMirrors, clearPrintMirrors } from './print-prep.js';
+import { WEREWOLF_FORMS, WOUND_LEVELS, HEALTH_PENALTIES, VAMPIRE_GENERATION } from './rules.js';
+import { computeCreation } from './creation.js';
+import { SPLAT_GUIDES, DOT_SCALE_GUIDE_HTML } from './guide.js';
+import { resolveRoll, resolveInitiative } from './dice.js';
+import { createDiceStage, toneFor } from './dice3d.js';
+import { initUx, noteSaved, noteBackedUp } from './ux.js';
+import { hydrateContainers } from './hydrate.js';
+import { sanitizeImport, sanitizeState, MAX_IMPORT_BYTES } from './import-guard.js';
+import {
+  V3_SPLATS, V3_WEREWOLF_FORMS,
+  bytesToBase79, base79ToBytes, writeVarint, readVarint, dictEncodeUtf8, dictDecodeUtf8
+} from './share-codec.js';
 
 const STORAGE_KEY = 'wod_1to1_sheet_v3';
 const THEME_STORAGE_KEY = 'wod_sheet_theme_v1';
 const COMPACT_STORAGE_KEY = 'wod_sheet_compact_v1';
+const INIT_WOUND_STORAGE_KEY = 'wod_sheet_init_wound_v1';
+const ROLL_HISTORY_STORAGE_KEY = 'wod_sheet_roll_history_v1';
+const DICE3D_STORAGE_KEY = 'wod_sheet_dice3d_v1';
+const TALLY_OPEN_STORAGE_KEY = 'wod_sheet_creation_points_open_v1';
+const TALLY_FREEBIE_OPEN_KEY = 'wod_sheet_creation_freebies_open_v1';
+const ROLL_HISTORY_MAX = 25;
+const UNDO_MAX = 50;
+const undoStack = [];
+let storageFailed = false;
 const SHARE_DOMAIN_PLACEHOLDER = 'https://wod20-charsheet-tool.vercel.app/';
 const DEFAULT_MF_ROWS = 5;
 const DEFAULT_COMBAT_ROWS = 6;
@@ -28,47 +50,22 @@ let currentWerewolfForm = 'homid';
 let activeSlotId = null;
 let rosterDeleteConfirmId = null;
 
-const WEREWOLF_FORMS = {
-  homid: {
-    label: 'Homid',
-    str: 0, dex: 0, sta: 0, man: 0, app: 0,
-    summary: 'Base Form · No attribute modifiers'
-  },
-  glabro: {
-    label: 'Glabro',
-    str: 2, dex: 0, sta: 2, man: -2, app: -1,
-    summary: 'Str +2 · Sta +2 · Man -2 · App -1'
-  },
-  crinos: {
-    label: 'Crinos',
-    str: 4, dex: 1, sta: 3, man: 'zero', app: 'zero',
-    summary: 'Str +4 · Dex +1 · Sta +3 · Man 0 · App 0 · Claws Str+2 Agg / Bite Str+1 Agg'
-  },
-  hispo: {
-    label: 'Hispo',
-    str: 3, dex: 2, sta: 3, man: 'zero', app: 0,
-    summary: 'Str +3 · Dex +2 · Sta +3 · Man 0 · Bite Str+2 Agg / Claws Str+1 Agg'
-  },
-  lupus: {
-    label: 'Lupus',
-    str: 1, dex: 2, sta: 2, man: 'zero', app: 0,
-    summary: 'Str +1 · Dex +2 · Sta +2 · Man 0 · Bite Str+1 Agg'
-  }
-};
-
 const HEALTH_STATES = ['empty', 'bashing', 'lethal', 'aggravated'];
 const HEALTH_SYMBOLS = { empty: '', bashing: '/', lethal: 'X', aggravated: '*' };
-const HEALTH_PENALTIES = [
-  { label: 'Healthy (0)', cls: '' },
-  { label: '-1 Penalty', cls: 'penalty-low' },
-  { label: '-1 Penalty', cls: 'penalty-low' },
-  { label: '-2 Penalty', cls: 'penalty-low' },
-  { label: '-2 Penalty', cls: 'penalty-low' },
-  { label: '-5 Penalty', cls: 'penalty-high' },
-  { label: 'Incapacitated', cls: 'penalty-high' }
-];
-
 document.addEventListener('DOMContentLoaded', async () => {
+  hydrateContainers();
+  document.addEventListener('input', (e) => {
+    const ta = e.target;
+    if (ta instanceof HTMLTextAreaElement && ta.classList.contains('sheet-area')) {
+      ta.style.height = '';
+      ta.style.height = ta.scrollHeight + 'px';
+    }
+  });
+  const dpLogo = document.querySelector('.dark-pack-logo');
+  if (dpLogo) dpLogo.addEventListener('error', () => { dpLogo.style.display = 'none'; });
+  bindUndo();
+  bindStorageBadge();
+  loadRollHistory();
   document.querySelectorAll('textarea.sheet-area').forEach(ta => {
     ta.dataset.defaultHeight = ta.style.height || '';
   });
@@ -82,6 +79,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindDragAndDrop();
   bindGuide();
   bindDiceRoller();
+  bindDice3d();
+  bindPrintDialog();
+  initUx({
+    getSplat: () => currentSplat,
+    getWound: () => getActiveWoundPenalty(currentSplat),
+    setTrack: (container, next) => {
+      const prev = parseInt(container.dataset.val || '0', 10);
+      if (prev === next) return;
+      pushUndo({ container, childClass: 'square-box', isSquare: true, paired: null, prev, label: getTraitContextLabel(container) });
+      writeDotValue(container, 'square-box', true, null, next);
+    },
+    rollInitiative: () => { toggleDicePanel(true); executeInitiativeRoll(); },
+    rollWillpower: () => {
+      const title = Array.from(document.querySelectorAll(`#splat-${currentSplat} .pool-box.rollable-pool`))
+        .find(b => b.querySelector(`[data-id="${currentSplat}_wp_dots"]`))?.querySelector('.pool-title');
+      if (!title) { showToast('No Willpower pool on this sheet'); return; }
+      rollFromSheetElement(title, {});
+    },
+    rollNow: (el, opts) => rollFromSheetElement(el, opts),
+    addToPool: (el) => el.click()
+  });
   updateGuidePanel();
   registerServiceWorker();
 
@@ -111,10 +129,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderRosterUI();
   }
   isSheetDirty = false;
+  handleLaunchShortcut();
 });
+
+// PWA shortcuts: ./index.html?open=dice | ?open=roster
+function handleLaunchShortcut() {
+  const params = new URLSearchParams(window.location.search);
+  const target = params.get('open');
+  if (!target) return;
+  if (target === 'dice') toggleDicePanel(true);
+  else if (target === 'roster') openRosterModal();
+  params.delete('open');
+  const qs = params.toString();
+  history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : '') + window.location.hash);
+}
 
 function bindControls() {
   document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !isEditableTarget(e.target)) {
+      e.preventDefault();
+      undoLastDotChange();
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
       saveAsJson();
@@ -123,28 +159,28 @@ function bindControls() {
     }
     if (e.key === 'Escape') {
       const hardResetModal = document.getElementById('hardResetModal');
-      if (hardResetModal && hardResetModal.style.display !== 'none') {
-        hardResetModal.style.display = 'none';
+      if (hardResetModal && hardResetModal.open) {
+        closeModal(hardResetModal);
         return;
       }
       const clearModal = document.getElementById('clearModal');
-      if (clearModal && clearModal.style.display !== 'none') {
-        clearModal.style.display = 'none';
+      if (clearModal && clearModal.open) {
+        closeModal(clearModal);
         return;
       }
       const resetRosterModal = document.getElementById('resetRosterModal');
-      if (resetRosterModal && resetRosterModal.style.display !== 'none') {
-        resetRosterModal.style.display = 'none';
+      if (resetRosterModal && resetRosterModal.open) {
+        closeModal(resetRosterModal);
         return;
       }
       const rosterModal = document.getElementById('rosterModal');
-      if (rosterModal && rosterModal.style.display !== 'none') {
+      if (rosterModal && rosterModal.open) {
         closeRosterModal();
         return;
       }
       const sampleModal = document.getElementById('sampleConfirmModal');
-      if (sampleModal && sampleModal.style.display !== 'none') {
-        sampleModal.style.display = 'none';
+      if (sampleModal && sampleModal.open) {
+        closeModal(sampleModal);
         document.getElementById('sampleCharSelect').value = '';
         pendingSampleKey = '';
         return;
@@ -230,14 +266,14 @@ function bindControls() {
     if (!key) return;
     if (isSheetDirty && hasActiveSheetData()) {
       pendingSampleKey = key;
-      document.getElementById('sampleConfirmModal').style.display = 'flex';
+      openModal(document.getElementById('sampleConfirmModal'));
     } else {
       loadSampleCharacter(key);
     }
   });
 
   document.getElementById('cancelSampleBtn').addEventListener('click', () => {
-    document.getElementById('sampleConfirmModal').style.display = 'none';
+    closeModal(document.getElementById('sampleConfirmModal'));
     document.getElementById('sampleCharSelect').value = '';
     pendingSampleKey = '';
   });
@@ -245,7 +281,7 @@ function bindControls() {
   if (sampleConfirmModalEl) {
     sampleConfirmModalEl.addEventListener('click', (e) => {
       if (e.target === sampleConfirmModalEl) {
-        sampleConfirmModalEl.style.display = 'none';
+        closeModal(sampleConfirmModalEl);
         document.getElementById('sampleCharSelect').value = '';
         pendingSampleKey = '';
       }
@@ -253,7 +289,7 @@ function bindControls() {
   }
 
   document.getElementById('confirmSampleBtn').addEventListener('click', () => {
-    document.getElementById('sampleConfirmModal').style.display = 'none';
+    closeModal(document.getElementById('sampleConfirmModal'));
     const key = pendingSampleKey;
     pendingSampleKey = '';
     if (key) loadSampleCharacter(key);
@@ -284,19 +320,19 @@ function bindControls() {
   }
 
   document.getElementById('resetSheetBtn').addEventListener('click', () => {
-    document.getElementById('clearModal').style.display = 'flex';
+    openModal(document.getElementById('clearModal'));
   });
   document.getElementById('cancelClearBtn').addEventListener('click', () => {
-    document.getElementById('clearModal').style.display = 'none';
+    closeModal(document.getElementById('clearModal'));
   });
   const clearModalEl = document.getElementById('clearModal');
   if (clearModalEl) {
     clearModalEl.addEventListener('click', (e) => {
-      if (e.target === clearModalEl) clearModalEl.style.display = 'none';
+      if (e.target === clearModalEl) closeModal(clearModalEl);
     });
   }
   document.getElementById('confirmClearBtn').addEventListener('click', () => {
-    document.getElementById('clearModal').style.display = 'none';
+    closeModal(document.getElementById('clearModal'));
     document.getElementById('sampleCharSelect').value = '';
     clearSheet(false);
     isSheetDirty = false;
@@ -304,19 +340,19 @@ function bindControls() {
   });
 
   document.getElementById('hardResetBtn').addEventListener('click', () => {
-    document.getElementById('hardResetModal').style.display = 'flex';
+    openModal(document.getElementById('hardResetModal'));
   });
   document.getElementById('cancelHardResetBtn').addEventListener('click', () => {
-    document.getElementById('hardResetModal').style.display = 'none';
+    closeModal(document.getElementById('hardResetModal'));
   });
   const hardResetModalEl = document.getElementById('hardResetModal');
   if (hardResetModalEl) {
     hardResetModalEl.addEventListener('click', (e) => {
-      if (e.target === hardResetModalEl) hardResetModalEl.style.display = 'none';
+      if (e.target === hardResetModalEl) closeModal(hardResetModalEl);
     });
   }
   document.getElementById('confirmHardResetBtn').addEventListener('click', () => {
-    document.getElementById('hardResetModal').style.display = 'none';
+    closeModal(document.getElementById('hardResetModal'));
     hardResetWebsite();
   });
 
@@ -325,16 +361,15 @@ function bindControls() {
     if (active) autoResizeTextareas(active);
     prepareCompactPrintRows();
     ensureSyncShareLinkForPrint();
+    preparePrintMirrors(active);
   });
   window.addEventListener('afterprint', () => {
     cleanupCompactPrintRows();
+    clearPrintMirrors();
   });
-  document.getElementById('printSheetBtn').addEventListener('click', async () => {
-    const active = document.getElementById('splat-' + currentSplat);
-    if (active) autoResizeTextareas(active);
-
-    await generateShareUrl({ copyToClipboard: true, showNotification: true });
-    window.print();
+  document.getElementById('printSheetBtn').addEventListener('click', () => {
+    document.getElementById('moreOptionsMenu')?.classList.remove('show');
+    openModal(document.getElementById('printDialog'));
   });
 
   document.getElementById('shareUrlBtn').addEventListener('click', () => {
@@ -511,7 +546,7 @@ function bindControls() {
     reader.onload = (evt) => {
       const img = new Image();
       img.onload = () => {
-        const maxDim = 500;
+        const maxDim = 400;
         let { width, height } = img;
         if (width > maxDim || height > maxDim) {
           if (width > height) { height = Math.round((height * maxDim) / width); width = maxDim; }
@@ -524,7 +559,7 @@ function bindControls() {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
         document.getElementById(activeTarget + '_portrait_url').value = dataUrl;
         updatePortrait(activeTarget, dataUrl);
         isSheetDirty = true;
@@ -680,7 +715,9 @@ function getTraitContextLabel(container) {
   const row = container.closest('.trait-row, .trait-flex-row, .pool-box');
   if (!row) return container.dataset.id || 'Trait';
   const lbl = row.querySelector('.trait-label, .pool-title-text, .pool-title');
-  if (lbl && lbl.textContent.trim()) return lbl.textContent.trim();
+  // pool titles can carry a live "7 / 7" counter; keep just the name
+  const text = lbl ? lbl.textContent.replace(/\s*\d+\s*\/\s*\d+\s*$/, '').trim() : '';
+  if (text) return text;
   const inp = row.querySelector('input.trait-name-input');
   if (inp && inp.value.trim()) return inp.value.trim();
   return container.dataset.id || 'Trait';
@@ -726,25 +763,18 @@ function bindDotContainer(container) {
   const paired = isSquare ? getPairedBoxContainers(container) : null;
   const idxOffset = paired ? (paired.rowNum - 1) * 10 : 0;
 
+  const maxVal = container.querySelectorAll('.' + childClass).length;
+  const currentValue = () => (paired ? getPairedBoxTotal(paired.baseId) : parseInt(container.dataset.val || '0', 10));
+  const applyValue = (next) => {
+    const prev = currentValue();
+    if (next === prev) return;
+    pushUndo({ container, childClass, isSquare, paired: paired ? paired.baseId : null, prev, label: contextLabel });
+    writeDotValue(container, childClass, isSquare, paired ? paired.baseId : null, next);
+  };
+
   container.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    if (paired) {
-      if (getPairedBoxTotal(paired.baseId) === 0) return;
-      setPairedBoxTotal(paired.baseId, 0);
-    } else {
-      const current = parseInt(container.dataset.val || '0', 10);
-      if (current === 0) return;
-      container.dataset.val = 0;
-      updateVisual(container, 0, childClass);
-      if (!isSquare) {
-        updateGuideTally();
-        if (container.dataset.id && container.dataset.id.startsWith('werewolf_attr_')) updateWerewolfFormUI();
-      }
-      if (typeof refreshSelectedDiceTraits === 'function') refreshSelectedDiceTraits();
-    }
-    updatePoolCounters(container.closest('.pool-box') || document);
-    isSheetDirty = true;
-    scheduleAutoSave();
+    applyValue(0);
   });
 
   const setHoverTrail = (hoverTotal) => {
@@ -764,43 +794,94 @@ function bindDotContainer(container) {
     }
   };
   container.addEventListener('mouseleave', () => setHoverTrail(0));
+  if (!container.hasAttribute('role')) {
+    container.setAttribute('role', 'group');
+    container.setAttribute('aria-label', contextLabel);
+  }
 
   container.querySelectorAll('.' + childClass).forEach(el => {
     const rawIdx = parseInt(el.dataset.idx, 10);
     const displayIdx = rawIdx + idxOffset;
     el.setAttribute('tabindex', '0');
     el.setAttribute('role', 'button');
+    el.setAttribute('aria-pressed', el.classList.contains('filled') ? 'true' : 'false');
     el.setAttribute('aria-label', `${contextLabel} ${isSquare ? 'box' : 'dot'} ${displayIdx}`);
     el.addEventListener('mouseenter', () => setHoverTrail(displayIdx));
     const clickHandler = () => {
-      if (paired) {
-        const currentTotal = getPairedBoxTotal(paired.baseId);
-        const clickedTotal = displayIdx;
-        const nextTotal = currentTotal === clickedTotal ? Math.max(0, clickedTotal - 1) : clickedTotal;
-        setPairedBoxTotal(paired.baseId, nextTotal);
-      } else {
-        const current = parseInt(container.dataset.val || '0', 10);
-        const next = current === rawIdx ? Math.max(0, rawIdx - 1) : rawIdx;
-        container.dataset.val = next;
-        updateVisual(container, next, childClass);
-        if (!isSquare) {
-          updateGuideTally();
-          if (container.dataset.id && container.dataset.id.startsWith('werewolf_attr_')) updateWerewolfFormUI();
-        }
-        if (typeof refreshSelectedDiceTraits === 'function') refreshSelectedDiceTraits();
-      }
-      updatePoolCounters(container.closest('.pool-box') || document);
-      isSheetDirty = true;
-      scheduleAutoSave();
+      const current = currentValue();
+      applyValue(current === displayIdx ? Math.max(0, displayIdx - 1) : displayIdx);
     };
     el.addEventListener('click', clickHandler);
     el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         clickHandler();
+        return;
       }
+      const step = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
+      const jump = e.key === 'Home' ? 0 : (e.key === 'End' ? maxVal + idxOffset : null);
+      if (step === undefined && jump === null) return;
+      e.preventDefault();
+      const limit = paired ? (paired.row4 ? 40 : 20) : maxVal;
+      const target = jump !== null ? Math.min(limit, jump) : Math.max(0, Math.min(limit, currentValue() + step));
+      applyValue(target);
+      // keep focus on the dot that now marks the value (within this row)
+      const local = Math.max(1, Math.min(maxVal, target - idxOffset));
+      const focusEl = container.querySelector(`.${childClass}[data-idx="${local}"]`);
+      if (focusEl) focusEl.focus();
     });
   });
+}
+
+function writeDotValue(container, childClass, isSquare, pairedBaseId, next) {
+  if (pairedBaseId) {
+    setPairedBoxTotal(pairedBaseId, next);
+  } else {
+    container.dataset.val = next;
+    updateVisual(container, next, childClass);
+    if (!isSquare) {
+      updateGuideTally();
+      if (container.dataset.id && container.dataset.id.startsWith('werewolf_attr_')) updateWerewolfFormUI();
+    }
+    if (typeof refreshSelectedDiceTraits === 'function') refreshSelectedDiceTraits();
+  }
+  updatePoolCounters(container.closest('.pool-box') || document);
+  isSheetDirty = true;
+  scheduleAutoSave();
+}
+
+function pushUndo(entry) {
+  if (isRestoring) return;
+  undoStack.push(entry);
+  if (undoStack.length > UNDO_MAX) undoStack.shift();
+  syncUndoButton();
+}
+
+function undoLastDotChange() {
+  let entry = undoStack.pop();
+  while (entry && !entry.container.isConnected) entry = undoStack.pop();
+  syncUndoButton();
+  if (!entry) {
+    showToast('Nothing to undo');
+    return;
+  }
+  writeDotValue(entry.container, entry.childClass, entry.isSquare, entry.paired, entry.prev);
+  showToast(`Undid: ${entry.label} back to ${entry.prev}`);
+}
+
+function syncUndoButton() {
+  const btn = document.getElementById('undoDotBtn');
+  if (btn) btn.disabled = undoStack.length === 0;
+}
+
+function isEditableTarget(el) {
+  return !!(el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)));
+}
+
+function bindUndo() {
+  const btn = document.getElementById('undoDotBtn');
+  if (btn) btn.addEventListener('click', undoLastDotChange);
+  syncUndoButton();
 }
 
 function addMeritFlawRow(splat, kind) {
@@ -957,8 +1038,21 @@ function loadSampleCharacter(key) {
   isSheetDirty = false;
 
   saveNow();
+  tagSampleSlot(key);
   const charName = (sample.inputs && sample.inputs[sample.splat + '_char_name']) || key;
   showToast('Loaded Sample: ' + charName);
+}
+
+// The sample's tier lives on its roster card, so the printed sheet stays clean.
+function tagSampleSlot(key) {
+  const tier = SAMPLE_TIERS[key];
+  if (!tier || !activeSlotId) return;
+  const store = loadGlobalStore();
+  const slot = store.roster.find(s => s.id === activeSlotId);
+  if (!slot) return;
+  slot.tags = Array.from(new Set([...(slot.tags || []), 'Sample', tier]));
+  saveGlobalStore(store);
+  renderRosterUI();
 }
 
 function updatePortrait(splat, url) {
@@ -969,8 +1063,15 @@ function updatePortrait(splat, url) {
     img.style.display = 'none';
     if (ph) ph.style.display = 'block';
   };
-  if (url && url.trim().length > 0) {
-    img.src = url.trim();
+  const clean = (url || '').trim();
+  if (clean && !/^(https:\/\/|data:image\/|blob:)/i.test(clean)) {
+    img.removeAttribute('src');
+    img.style.display = 'none';
+    if (ph) ph.style.display = 'block';
+    return;
+  }
+  if (clean.length > 0) {
+    img.src = clean;
     img.style.display = 'block';
     if (ph) ph.style.display = 'none';
   } else {
@@ -1070,6 +1171,7 @@ function switchSplat(splat) {
     updateGuidePanel();
     requestAnimationFrame(() => autoResizeTextareas(active));
   }
+  document.dispatchEvent(new CustomEvent('wod:splatchange', { detail: { splat } }));
 }
 
 function getPairedBoxTotal(baseSqId) {
@@ -1087,20 +1189,7 @@ function getPairedBoxTotal(baseSqId) {
 function getVampireGenStats(rawGenStr) {
   const match = String(rawGenStr || '').match(/(\d+)/);
   const gen = match ? parseInt(match[1], 10) : 13;
-  const table = {
-    15: { max: 10, perTurn: '1/turn' },
-    14: { max: 10, perTurn: '1/turn' },
-    13: { max: 10, perTurn: '1/turn' },
-    12: { max: 11, perTurn: '1/turn' },
-    11: { max: 12, perTurn: '1/turn' },
-    10: { max: 13, perTurn: '1/turn' },
-    9:  { max: 14, perTurn: '2/turn' },
-    8:  { max: 15, perTurn: '3/turn' },
-    7:  { max: 20, perTurn: '4/turn' },
-    6:  { max: 30, perTurn: '6/turn' },
-    5:  { max: 40, perTurn: '8/turn' },
-    4:  { max: 50, perTurn: '10/turn' }
-  };
+  const table = VAMPIRE_GENERATION;
   let stats;
   if (gen >= 14) stats = { max: 10, perTurn: '1/turn' };
   else if (gen <= 3) stats = { max: '100+', perTurn: '10+/turn' };
@@ -1165,17 +1254,17 @@ function updateSplatHelpers() {
     const threshold = permWp > 0 ? permWp : psycheWp;
 
     cathBadge.classList.remove('helper-warn', 'helper-danger');
-    if (threshold > 0 && tempAngst >= threshold) {
-      cathBadge.textContent = `Catharsis! (${tempAngst} ≥ WP ${threshold})`;
+    if (threshold > 0 && tempAngst > threshold) {
+      cathBadge.textContent = `Catharsis risk! (${tempAngst} > WP ${threshold})`;
       cathBadge.classList.add('helper-danger');
-      cathBadge.title = `Temporary Angst (${tempAngst}) equals or exceeds Permanent Willpower (${threshold}) — Catharsis triggered!`;
-    } else if (threshold > 0 && tempAngst === threshold - 1 && tempAngst > 0) {
-      cathBadge.textContent = `Near Catharsis (${tempAngst}/${threshold})`;
+      cathBadge.title = `Temporary Angst (${tempAngst}) exceeds Permanent Willpower (${threshold}): the Shadow may attempt a Catharsis roll.`;
+    } else if (threshold > 0 && tempAngst === threshold && tempAngst > 0) {
+      cathBadge.textContent = `At threshold (${tempAngst}/${threshold})`;
       cathBadge.classList.add('helper-warn');
-      cathBadge.title = `1 Temporary Angst away from Catharsis (Willpower ${threshold}).`;
+      cathBadge.title = `Temporary Angst equals Willpower (${threshold}). One more point lets the Shadow attempt Catharsis.`;
     } else {
       cathBadge.textContent = `WP ${threshold} Threshold`;
-      cathBadge.title = `Wr20 Catharsis triggers when Temporary Angst (${tempAngst}) reaches Permanent Willpower (${threshold}).`;
+      cathBadge.title = `Wr20: the Shadow may attempt Catharsis when Temporary Angst (${tempAngst}) exceeds Permanent Willpower (${threshold}).`;
     }
   }
 }
@@ -1367,7 +1456,9 @@ function initDotsAndBoxes() {
 
 function updateVisual(container, val, childClass) {
   container.querySelectorAll('.' + childClass).forEach(el => {
-    el.classList.toggle('filled', parseInt(el.dataset.idx, 10) <= val);
+    const on = parseInt(el.dataset.idx, 10) <= val;
+    el.classList.toggle('filled', on);
+    el.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
 }
 
@@ -1400,8 +1491,8 @@ function updateWoundPenalty(splat = currentSplat) {
 
   if (splat === 'changeling') {
     const realIdx = getTrackPenaltyIndex('changeling', 'changeling_hlth_real');
-    const chimIdx = getTrackPenaltyIndex('changeling_hlth_chim');
-    const shortLabels = ['0', '-1', '-1', '-2', '-2', '-5', 'Incap'];
+    const chimIdx = getTrackPenaltyIndex('changeling', 'changeling_hlth_chim');
+    const shortLabels = WOUND_LEVELS.map(w => w.short);
     badge.textContent = `R: ${shortLabels[realIdx]} | C: ${shortLabels[chimIdx]}`;
     const worst = Math.max(realIdx, chimIdx);
     if (HEALTH_PENALTIES[worst].cls) badge.classList.add(HEALTH_PENALTIES[worst].cls);
@@ -1500,6 +1591,8 @@ function captureCurrentState() {
 
 function restoreState(state) {
   if (!state || !state.splat) return;
+  undoStack.length = 0;
+  syncUndoButton();
   currentWerewolfForm = (state.splat === 'werewolf' && state.werewolfForm && WEREWOLF_FORMS[state.werewolfForm])
     ? state.werewolfForm
     : 'homid';
@@ -1806,7 +1899,7 @@ function createSlotRecord(state, overrideId = null) {
     name: meta.name,
     subtitle: meta.subtitle,
     updatedAt: Date.now(),
-    state: JSON.parse(JSON.stringify(state))
+    state: structuredClone(state)
   };
 }
 
@@ -1870,9 +1963,44 @@ function loadGlobalStore() {
 function saveGlobalStore(store) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    if (storageFailed) {
+      storageFailed = false;
+      document.body.classList.remove('storage-failed');
+    }
+    return true;
   } catch (e) {
-    showToast('Storage limit reached — export JSON backup');
+    console.warn('Local save failed:', e);
+    if (!storageFailed) showToast('Not saved: browser storage is full or blocked. Back up your roster now.');
+    storageFailed = true;
+    document.body.classList.add('storage-failed');
+    setBadgeState(document.getElementById('autosaveIndicator'));
+    return false;
   }
+}
+
+function setBadgeState(badge) {
+  if (!badge || !storageFailed) return false;
+  badge.textContent = 'Not Saved — Back Up';
+  badge.classList.remove('saved');
+  badge.classList.add('failed');
+  badge.setAttribute('role', 'button');
+  badge.setAttribute('tabindex', '0');
+  badge.title = 'Browser storage failed. Click to download a roster backup (.json).';
+  return true;
+}
+
+function bindStorageBadge() {
+  const badge = document.getElementById('autosaveIndicator');
+  if (!badge) return;
+  const backup = () => {
+    if (!storageFailed) return;
+    const btn = document.getElementById('exportRosterBtn');
+    if (btn) btn.click(); else saveAsJson();
+  };
+  badge.addEventListener('click', backup);
+  badge.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); backup(); }
+  });
 }
 
 function formatSlotTimestamp(ts) {
@@ -1884,6 +2012,75 @@ function formatSlotTimestamp(ts) {
   } catch (e) {
     return '';
   }
+}
+
+const ROSTER_SORT_KEY = 'wod_sheet_roster_sort_v1';
+
+function getRosterSortMode() {
+  const sel = document.getElementById('rosterSort');
+  if (sel && sel.value) return sel.value;
+  try { return localStorage.getItem(ROSTER_SORT_KEY) || 'recent'; } catch (e) { return 'recent'; }
+}
+
+// Gives every slot an explicit position (in the order shown), then moves one.
+function setRosterOrder(ids) {
+  const store = loadGlobalStore();
+  ids.forEach((id, i) => { const s = store.roster.find(x => x.id === id); if (s) s.order = i; });
+  saveGlobalStore(store);
+  renderRosterUI();
+}
+
+function currentCustomOrderIds() {
+  return Array.from(document.querySelectorAll('#rosterSlotList .roster-slot-card')).map(c => c.dataset.slotId);
+}
+
+function moveRosterSlot(id, dir) {
+  const ids = currentCustomOrderIds();
+  const i = ids.indexOf(id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  setRosterOrder(ids);
+}
+
+function bindRosterTools() {
+  const search = document.getElementById('rosterSearch');
+  const sort = document.getElementById('rosterSort');
+  const list = document.getElementById('rosterSlotList');
+  if (sort) {
+    try { sort.value = localStorage.getItem(ROSTER_SORT_KEY) || 'recent'; } catch (e) { /* default */ }
+    sort.addEventListener('change', () => {
+      try { localStorage.setItem(ROSTER_SORT_KEY, sort.value); } catch (e) { /* ignore */ }
+      renderRosterUI();
+    });
+  }
+  if (search) search.addEventListener('input', () => renderRosterUI());
+  if (!list) return;
+  let dragId = null;
+  list.addEventListener('dragstart', (e) => {
+    const card = e.target.closest('.roster-slot-card[draggable="true"]');
+    if (!card) return;
+    dragId = card.dataset.slotId;
+    card.classList.add('is-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', dragId);
+  });
+  list.addEventListener('dragover', (e) => {
+    if (!dragId) return;
+    const over = e.target.closest('.roster-slot-card');
+    if (!over || over.dataset.slotId === dragId) return;
+    e.preventDefault();
+    const dragging = list.querySelector('.is-dragging');
+    const r = over.getBoundingClientRect();
+    const before = e.clientY < r.top + r.height / 2;
+    if (dragging) list.insertBefore(dragging, before ? over : over.nextSibling);
+  });
+  list.addEventListener('drop', (e) => { if (dragId) e.preventDefault(); });
+  list.addEventListener('dragend', () => {
+    if (!dragId) return;
+    dragId = null;
+    setRosterOrder(currentCustomOrderIds());
+  });
 }
 
 function renderRosterUI() {
@@ -1916,14 +2113,33 @@ function renderRosterUI() {
     return;
   }
 
-  const sorted = [...store.roster].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  listEl.innerHTML = sorted.map(slot => {
+  const mode = getRosterSortMode();
+  const q = (document.getElementById('rosterSearch')?.value || '').trim().toLowerCase();
+  const sorters = {
+    recent: (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
+    name: (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }),
+    splat: (a, b) => V3_SPLATS.indexOf(a.splat) - V3_SPLATS.indexOf(b.splat) || (a.name || '').localeCompare(b.name || ''),
+    custom: (a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || (b.updatedAt || 0) - (a.updatedAt || 0)
+  };
+  const sorted = [...store.roster].sort(sorters[mode] || sorters.recent).filter(slot => {
+    if (!q) return true;
+    const hay = [slot.name, slot.subtitle, SPLAT_DISPLAY_NAMES[slot.splat], ...(slot.tags || [])].join(' ').toLowerCase();
+    return q.split(/\s+/).every(w => hay.includes(w));
+  });
+  const isCustom = mode === 'custom' && !q;
+  listEl.classList.toggle('is-custom-order', isCustom);
+  if (!sorted.length) {
+    listEl.innerHTML = '<p class="roster-empty">No characters match that search.</p>';
+    return;
+  }
+  listEl.innerHTML = sorted.map((slot, pos) => {
     const isActive = slot.id === activeSlotId;
     const isConfirmDel = slot.id === rosterDeleteConfirmId;
     const splatName = SPLAT_DISPLAY_NAMES[slot.splat] || slot.splat;
     const metaParts = [slot.subtitle, formatSlotTimestamp(slot.updatedAt)].filter(Boolean).join(' · ');
     return `
-      <div class="roster-slot-card${isActive ? ' active' : ''}" data-slot-id="${escapeHtmlForDice(slot.id)}">
+      <div class="roster-slot-card${isActive ? ' active' : ''}" data-slot-id="${escapeHtmlForDice(slot.id)}"${isCustom ? ' draggable="true"' : ''}>
+        ${isCustom ? `<div class="roster-drag" aria-hidden="true" title="Drag to reorder">⠇</div>` : ''}
         <div class="roster-slot-info">
           <div class="roster-slot-title-row">
             <span class="roster-slot-name">${escapeHtmlForDice(slot.name || 'Unnamed Character')}</span>
@@ -1931,11 +2147,15 @@ function renderRosterUI() {
             ${isActive ? '<span class="roster-active-pill">Active</span>' : ''}
           </div>
           <div class="roster-slot-meta">${escapeHtmlForDice(metaParts || 'Blank sheet')}</div>
+          ${(slot.tags || []).length ? `<div class="roster-tags">${slot.tags.map(t => `<span class="roster-tag">${escapeHtmlForDice(t)}</span>`).join('')}</div>` : ''}
         </div>
         <div class="roster-slot-actions">
           ${!isActive ? `<button type="button" class="btn btn-sm btn-accent roster-open-btn" data-id="${escapeHtmlForDice(slot.id)}">Open</button>` : ''}
           <button type="button" class="btn btn-sm roster-rename-btn" data-id="${escapeHtmlForDice(slot.id)}" title="Rename slot">Rename</button>
           <button type="button" class="btn btn-sm roster-dup-btn" data-id="${escapeHtmlForDice(slot.id)}" title="Duplicate slot">Copy</button>
+          <button type="button" class="btn btn-sm roster-npc-btn" data-id="${escapeHtmlForDice(slot.id)}" title="Duplicate as an NPC (tagged NPC)">As NPC</button>
+          <button type="button" class="btn btn-sm roster-tags-btn" data-id="${escapeHtmlForDice(slot.id)}" title="Edit tags">Tags</button>
+          ${isCustom ? `<button type="button" class="btn btn-sm roster-move-btn" data-id="${escapeHtmlForDice(slot.id)}" data-dir="-1" aria-label="Move up"${pos === 0 ? ' disabled' : ''}>▲</button><button type="button" class="btn btn-sm roster-move-btn" data-id="${escapeHtmlForDice(slot.id)}" data-dir="1" aria-label="Move down"${pos === sorted.length - 1 ? ' disabled' : ''}>▼</button>` : ''}
           <button type="button" class="btn btn-sm btn-danger roster-del-btn" data-id="${escapeHtmlForDice(slot.id)}" title="Delete slot">${isConfirmDel ? 'Confirm?' : '&times;'}</button>
         </div>
       </div>
@@ -2010,6 +2230,14 @@ function handleSplatDropdownChange(targetSplat) {
   }
 }
 
+function openModal(el) {
+  if (el && !el.open) el.showModal();
+}
+
+function closeModal(el) {
+  if (el && el.open) el.close();
+}
+
 function openRosterModal() {
   flushAutoSave();
   rosterDeleteConfirmId = null;
@@ -2017,18 +2245,19 @@ function openRosterModal() {
   if (newSplatSel) newSplatSel.value = currentSplat;
   renderRosterUI();
   const modal = document.getElementById('rosterModal');
-  if (modal) modal.style.display = 'flex';
+  if (modal) openModal(modal);
 }
 
 function closeRosterModal() {
   rosterDeleteConfirmId = null;
   const confirmModal = document.getElementById('resetRosterModal');
-  if (confirmModal) confirmModal.style.display = 'none';
+  if (confirmModal) closeModal(confirmModal);
   const modal = document.getElementById('rosterModal');
-  if (modal) modal.style.display = 'none';
+  if (modal) closeModal(modal);
 }
 
 function bindRosterControls() {
+  bindRosterTools();
   const rosterSelect = document.getElementById('rosterSelect');
   if (rosterSelect) {
     rosterSelect.addEventListener('change', (e) => {
@@ -2079,12 +2308,75 @@ function bindRosterControls() {
         return;
       }
 
+      const npcBtn = e.target.closest('.roster-npc-btn');
+      if (npcBtn) {
+        const store = loadGlobalStore();
+        const orig = store.roster.find(s => s.id === npcBtn.dataset.id);
+        if (!orig) return;
+        const clonedState = structuredClone(orig.state);
+        const nameField = `${orig.splat}_char_name`;
+        if (clonedState.inputs) {
+          const baseName = (clonedState.inputs[nameField] || orig.name || 'Unnamed Character').trim();
+          clonedState.inputs[nameField] = `${baseName} (NPC)`;
+        }
+        createNewRosterSlot(orig.splat, clonedState, `NPC copy of ${orig.name}`);
+        const after = loadGlobalStore();
+        const created = after.roster.find(s => s.id === activeSlotId);
+        if (created) {
+          created.tags = Array.from(new Set([...(orig.tags || []).filter(t => t.toLowerCase() !== 'pc'), 'NPC']));
+          saveGlobalStore(after);
+        }
+        renderRosterUI();
+        return;
+      }
+
+      const tagsBtn = e.target.closest('.roster-tags-btn');
+      if (tagsBtn) {
+        const card = tagsBtn.closest('.roster-slot-card');
+        const info = card ? card.querySelector('.roster-slot-info') : null;
+        const store = loadGlobalStore();
+        const target = store.roster.find(s => s.id === tagsBtn.dataset.id);
+        if (!info || !target) return;
+        info.querySelector('.roster-tags')?.remove();
+        const wrap = document.createElement('div');
+        wrap.className = 'roster-tag-edit';
+        wrap.innerHTML = `<input type="text" class="roster-rename-input" aria-label="Tags, separated by commas" placeholder="e.g. NPC, Chicago, Session 3"><button type="button" class="btn btn-sm btn-accent">Save</button>`;
+        const inp = wrap.querySelector('input');
+        inp.value = (target.tags || []).join(', ');
+        const save = () => {
+          const st = loadGlobalStore();
+          const t = st.roster.find(x => x.id === target.id);
+          if (t) {
+            t.tags = Array.from(new Set(inp.value.split(',').map(x => x.trim().slice(0, 30)).filter(Boolean))).slice(0, 12);
+            saveGlobalStore(st);
+          }
+          renderRosterUI();
+        };
+        wrap.querySelector('button').addEventListener('click', save);
+        inp.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') { ev.preventDefault(); save(); }
+          if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); renderRosterUI(); }
+        });
+        info.appendChild(wrap);
+        inp.focus();
+        return;
+      }
+
+      const moveBtn = e.target.closest('.roster-move-btn');
+      if (moveBtn) {
+        moveRosterSlot(moveBtn.dataset.id, parseInt(moveBtn.dataset.dir, 10));
+        requestAnimationFrame(() => {
+          document.querySelector(`.roster-move-btn[data-id="${CSS.escape(moveBtn.dataset.id)}"][data-dir="${moveBtn.dataset.dir}"]:not(:disabled)`)?.focus();
+        });
+        return;
+      }
+
       const dupBtn = e.target.closest('.roster-dup-btn');
       if (dupBtn) {
         const store = loadGlobalStore();
         const orig = store.roster.find(s => s.id === dupBtn.dataset.id);
         if (!orig) return;
-        const clonedState = JSON.parse(JSON.stringify(orig.state));
+        const clonedState = structuredClone(orig.state);
         const nameField = `${orig.splat}_char_name`;
         if (clonedState.inputs) {
           const baseName = (clonedState.inputs[nameField] || orig.name || 'Unnamed Character').trim();
@@ -2200,6 +2492,7 @@ function bindRosterControls() {
       a.download = 'wod20_roster_backup.json';
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      noteBackedUp();
       showToast(`Exported ${store.roster.length} Character(s)`);
     });
   }
@@ -2222,17 +2515,17 @@ function bindRosterControls() {
   if (resetRosterBtn && resetRosterModal) {
     resetRosterBtn.addEventListener('click', () => {
       rosterDeleteConfirmId = null;
-      resetRosterModal.style.display = 'flex';
+      openModal(resetRosterModal);
     });
   }
   if (cancelResetRosterBtn && resetRosterModal) {
     cancelResetRosterBtn.addEventListener('click', () => {
-      resetRosterModal.style.display = 'none';
+      closeModal(resetRosterModal);
     });
   }
   if (resetRosterModal) {
     resetRosterModal.addEventListener('click', (e) => {
-      if (e.target === resetRosterModal) resetRosterModal.style.display = 'none';
+      if (e.target === resetRosterModal) closeModal(resetRosterModal);
     });
   }
   if (confirmResetRosterBtn) {
@@ -2340,11 +2633,16 @@ function saveNow() {
 
   store.activeSplat = currentSplat;
   store.activeSlotId = activeSlotId;
-  saveGlobalStore(store);
+  const ok = saveGlobalStore(store);
+  noteSaved(ok && isSheetDirty);
 
   renderRosterUI();
-  if (badge) {
+  if (badge && ok) {
     badge.textContent = 'Saved Locally';
+    badge.classList.remove('failed');
+    badge.removeAttribute('role');
+    badge.removeAttribute('tabindex');
+    badge.title = '';
     badge.classList.add('saved');
   }
 }
@@ -2359,7 +2657,7 @@ function scheduleAutoSave() {
   if (isRestoring) return;
   clearTimeout(autoSaveTimer);
   const badge = document.getElementById('autosaveIndicator');
-  if (badge) {
+  if (badge && !setBadgeState(badge)) {
     badge.textContent = 'Saving...';
     badge.classList.remove('saved');
   }
@@ -2395,6 +2693,12 @@ function restoreFromLocalStorage() {
 
 function showToast(msg) {
   const c = document.getElementById('toastContainer');
+  if (c.showPopover) {
+    try {
+      if (c.matches(':popover-open')) c.hidePopover();
+      c.showPopover();
+    } catch (e) { /* popover unsupported: falls back to z-index */ }
+  }
   const t = document.createElement('div');
   t.className = 'toast show';
   t.textContent = msg;
@@ -2424,115 +2728,6 @@ function getPdfShareBaseUrl() {
   const currentSearch = window.location.search || '';
   const param = currentSearch === `?s=${tag}` ? `s=${tag}x` : `s=${tag}`;
   return `${base}?${param}`;
-}
-
-const V3_SPLATS = ['mortal', 'vampire', 'werewolf', 'mage', 'changeling', 'wraith'];
-const V3_WEREWOLF_FORMS = ['homid', 'glabro', 'crinos', 'hispo', 'lupus'];
-const V3_B79_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~!$()*+,;=:@/?";
-const V3_B79_BASE = BigInt(V3_B79_ALPHABET.length); // 79
-const V3_B79_REV = Object.fromEntries([...V3_B79_ALPHABET].map((c, i) => [c, BigInt(i)]));
-
-const V3_TOKEN_BYTES = Array.from({ length: 31 }, (_, i) => i + 1).filter(b => b !== 9 && b !== 10 && b !== 13);
-const V3_DICT_STRINGS = [
-  "aggravated", "Willpower", "Strength", "Dexterity", "Stamina",
-  "Charisma", "Manipulation", "Appearance", "Perception", "Intelligence",
-  "Generation", "Discipline", "Background", "Resources", "Allies",
-  "Contacts", "Retainers", "Influence", "Mentor", "Status",
-  " the ", " and ", " of ", " to ", " in ", " with ", " for ", "ing "
-];
-
-function bytesToBase79(bytes) {
-  if (!bytes || bytes.length === 0) return '';
-  let n = 1n; // 0x01 sentinel preserves leading 0x00 bytes
-  for (let i = 0; i < bytes.length; i++) {
-    n = (n << 8n) | BigInt(bytes[i]);
-  }
-  const chars = [];
-  while (n > 0n) {
-    const rem = Number(n % V3_B79_BASE);
-    n = n / V3_B79_BASE;
-    chars.push(V3_B79_ALPHABET[rem]);
-  }
-  return chars.reverse().join('');
-}
-
-function base79ToBytes(str) {
-  if (!str) return new Uint8Array(0);
-  let n = 0n;
-  for (let i = 0; i < str.length; i++) {
-    const v = V3_B79_REV[str[i]];
-    if (v === undefined) throw new Error('Invalid Base79 character');
-    n = n * V3_B79_BASE + v;
-  }
-  const hex = n.toString(16).padStart(2, '0');
-  const paddedHex = hex.length % 2 ? '0' + hex : hex;
-  const out = new Uint8Array(paddedHex.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(paddedHex.slice(i * 2, i * 2 + 2), 16);
-  }
-  if (out[0] !== 1) throw new Error('Invalid sentinel byte');
-  return out.slice(1);
-}
-
-function writeVarint(arr, val) {
-  let v = val >>> 0;
-  while (v >= 0x80) {
-    arr.push((v & 0x7f) | 0x80);
-    v >>>= 7;
-  }
-  arr.push(v);
-}
-
-function readVarint(bytes, state) {
-  let val = 0;
-  let shift = 0;
-  while (state.pos < bytes.length) {
-    const b = bytes[state.pos++];
-    val |= (b & 0x7f) << shift;
-    if ((b & 0x80) === 0) return val >>> 0;
-    shift += 7;
-  }
-  throw new Error('Truncated varint');
-}
-
-function dictEncodeUtf8(str) {
-  const raw = new TextEncoder().encode(str);
-  const tokenSet = new Set(V3_TOKEN_BYTES);
-  const escaped = [];
-  for (let i = 0; i < raw.length; i++) {
-    const b = raw[i];
-    if (b === 0 || tokenSet.has(b)) escaped.push(0);
-    escaped.push(b);
-  }
-  let latin = '';
-  for (let i = 0; i < escaped.length; i++) latin += String.fromCharCode(escaped[i]);
-  const pairs = V3_DICT_STRINGS
-    .map((word, idx) => ({ word, tok: String.fromCharCode(V3_TOKEN_BYTES[idx]) }))
-    .sort((a, b) => b.word.length - a.word.length);
-  for (const { word, tok } of pairs) {
-    latin = latin.split(word).join(tok);
-  }
-  const out = new Uint8Array(latin.length);
-  for (let i = 0; i < latin.length; i++) out[i] = latin.charCodeAt(i);
-  return out;
-}
-
-function dictDecodeUtf8(bytes) {
-  const tokMap = new Map();
-  V3_TOKEN_BYTES.forEach((b, idx) => tokMap.set(b, new TextEncoder().encode(V3_DICT_STRINGS[idx])));
-  const out = [];
-  for (let i = 0; i < bytes.length; i++) {
-    const b = bytes[i];
-    if (b === 0) {
-      out.push(bytes[++i]);
-    } else if (tokMap.has(b)) {
-      const seq = tokMap.get(b);
-      for (let j = 0; j < seq.length; j++) out.push(seq[j]);
-    } else {
-      out.push(b);
-    }
-  }
-  return new TextDecoder().decode(new Uint8Array(out));
 }
 
 function getDefaultAdvRowCount(splat, advIdx) {
@@ -2811,6 +3006,7 @@ async function checkUrlForCharacter() {
       while (b64.length % 4) b64 += '=';
       state = JSON.parse(decodeURIComponent(atob(b64)));
     }
+    if (state && !hash.startsWith('#v3')) state = sanitizeState(state);
     if (state) {
       isRestoring = true;
       restoreState(state);
@@ -2847,34 +3043,34 @@ function saveAsJson() {
 
 function importJsonFile(file, fromRosterModal = false) {
   if (!file) return;
+  if (file.size > MAX_IMPORT_BYTES) {
+    showToast(`File too large (max ${Math.round(MAX_IMPORT_BYTES / 1048576)} MB)`);
+    return;
+  }
   const reader = new FileReader();
   reader.onload = (evt) => {
     try {
-      const parsed = JSON.parse(evt.target.result);
+      const result = sanitizeImport(JSON.parse(evt.target.result));
+      if (result.kind === 'invalid') {
+        showToast('Import failed: ' + result.reason);
+        return;
+      }
       flushAutoSave();
 
       // Multi-character roster backup import
-      if (parsed && parsed.type === 'wod20_roster_backup' && Array.isArray(parsed.roster)) {
-        const validSlots = parsed.roster.filter(s => s && s.state && s.state.splat);
-        if (!validSlots.length) {
-          showToast('No valid character slots in backup');
-          return;
-        }
+      if (result.kind === 'roster') {
         const store = loadGlobalStore();
-        const imported = validSlots.map(s => createSlotRecord(s.state));
+        const imported = result.states.map(st => createSlotRecord(st));
         store.roster.push(...imported);
         saveGlobalStore(store);
         switchToRosterSlot(imported[0].id);
         if (fromRosterModal) renderRosterUI();
-        showToast(`Imported ${imported.length} Character(s)`);
+        showToast(`Imported ${imported.length} Character(s)` + (result.skipped ? `, skipped ${result.skipped} invalid` : ''));
         return;
       }
 
       // Single character JSON import
-      if (!parsed || !parsed.splat) {
-        showToast('Invalid JSON');
-        return;
-      }
+      const parsed = result.state;
       if (hasActiveSheetData()) {
         activeSlotId = generateSlotId();
       }
@@ -2979,287 +3175,6 @@ function updateDocumentTitle() {
 }
 
 
-const SPLAT_GUIDES = {
-  mortal: `
-    <h4>Creation Process (Hunters Hunted II)</h4>
-    <ul>
-      <li><strong>Attributes:</strong> +6 / +4 / +3 priority dots<span class="guide-note">Starts with 1 dot each (9 / 7 / 6 category totals; 22 total)</span></li>
-      <li><strong>Abilities:</strong> 13 / 9 / 5 (max 3 before Freebies)</li>
-      <li><strong>Backgrounds:</strong> 5</li>
-      <li><strong>Virtues:</strong> +7 dots<span class="guide-note">Starts with 1 dot each (10 total across 3 Virtues)</span></li>
-      <li><strong>Freebie Points:</strong> 21</li>
-    </ul>
-    <h4>Key Traits</h4>
-    <ul>
-      <li><strong>Humanity:</strong> Conscience + Self-Control</li>
-      <li><strong>Willpower:</strong> Equal to Courage rating</li>
-      <li><strong>Numina / True Faith:</strong> Purchased with Freebie Points (with ST approval).</li>
-    </ul>
-    <h4>Freebie Point Costs (21 pts)</h4>
-    <table class="guide-cost-grid">
-      <thead><tr><th>Trait</th><th>Cost</th></tr></thead>
-      <tbody>
-        <tr><td>Attribute</td><td>5 / dot</td></tr>
-        <tr><td>Ability</td><td>2 / dot</td></tr>
-        <tr><td>Numina / True Faith</td><td>7 / dot</td></tr>
-        <tr><td>Background</td><td>1 / dot</td></tr>
-        <tr><td>Virtue</td><td>2 / dot</td></tr>
-        <tr><td>Humanity / Willpower</td><td>1 / dot</td></tr>
-        <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
-      </tbody>
-    </table>
-    <h4>Experience Costs (XP)</h4>
-    <table class="guide-cost-grid">
-      <thead><tr><th>Trait</th><th>XP Cost</th></tr></thead>
-      <tbody>
-        <tr><td>New Ability</td><td>3</td></tr>
-        <tr><td>Attribute</td><td>current &times; 4</td></tr>
-        <tr><td>Ability</td><td>current &times; 2</td></tr>
-        <tr><td>Numina Path</td><td>current &times; 7 (New: 7)</td></tr>
-        <tr><td>Virtue / Humanity</td><td>current &times; 2</td></tr>
-        <tr><td>Willpower</td><td>current</td></tr>
-      </tbody>
-    </table>
-    <span class="guide-note">Note: True Faith cannot be bought with XP.</span>
-    <h4>Specialties</h4>
-    <p>Attributes and Abilities rated 4+ gain a Specialty.</p>
-  `,
-  vampire: `
-    <h4>Creation Process (V20)</h4>
-    <ul>
-      <li><strong>Attributes:</strong> +7 / +5 / +3 priority dots<span class="guide-note">Starts with 1 dot each (10 / 8 / 6 category totals; 24 total)</span></li>
-      <li><strong>Abilities:</strong> 13 / 9 / 5 (max 3 before Freebies)</li>
-      <li><strong>Disciplines:</strong> 3</li>
-      <li><strong>Backgrounds:</strong> 5</li>
-      <li><strong>Virtues:</strong> +7 dots<span class="guide-note">Starts with 1 dot each (10 total across 3 Virtues)</span></li>
-      <li><strong>Freebie Points:</strong> 15</li>
-    </ul>
-    <h4>Key Traits</h4>
-    <ul>
-      <li><strong>Humanity / Path:</strong> Conscience + Self-Control</li>
-      <li><strong>Willpower:</strong> Equal to Courage rating</li>
-      <li><strong>Blood Pool:</strong> 13th Gen starts with Max 10, Spend 1/turn (adjusted by Generation Background).</li>
-    </ul>
-    <h4>Freebie Point Costs (15 pts)</h4>
-    <table class="guide-cost-grid">
-      <thead><tr><th>Trait</th><th>Cost</th></tr></thead>
-      <tbody>
-        <tr><td>Attribute</td><td>5 / dot</td></tr>
-        <tr><td>Ability</td><td>2 / dot</td></tr>
-        <tr><td>Discipline</td><td>7 / dot</td></tr>
-        <tr><td>Background</td><td>1 / dot</td></tr>
-        <tr><td>Virtue</td><td>2 / dot</td></tr>
-        <tr><td>Humanity / Path</td><td>1 / dot</td></tr>
-        <tr><td>Willpower</td><td>1 / dot</td></tr>
-        <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
-      </tbody>
-    </table>
-    <h4>Experience Costs (XP)</h4>
-    <table class="guide-cost-grid">
-      <thead><tr><th>Trait</th><th>XP Cost</th></tr></thead>
-      <tbody>
-        <tr><td>New Ability</td><td>3</td></tr>
-        <tr><td>New Discipline / Path</td><td>10 / 7</td></tr>
-        <tr><td>Attribute</td><td>current &times; 4</td></tr>
-        <tr><td>Ability</td><td>current &times; 2</td></tr>
-        <tr><td>Clan Discipline</td><td>current &times; 5</td></tr>
-        <tr><td>Other Discipline</td><td>current &times; 7</td></tr>
-        <tr><td>Secondary Path</td><td>current &times; 4</td></tr>
-        <tr><td>Virtue / Humanity / Path</td><td>current &times; 2</td></tr>
-        <tr><td>Willpower</td><td>current</td></tr>
-      </tbody>
-    </table>
-    <h4>Specialties</h4>
-    <p>Attributes and Abilities rated 4+ gain a Specialty.</p>
-  `,
-  werewolf: `
-    <h4>Creation Process (W20)</h4>
-    <ul>
-      <li><strong>Attributes:</strong> +7 / +5 / +3 priority dots<span class="guide-note">Starts with 1 dot each (10 / 8 / 6 category totals; 24 total)</span></li>
-      <li><strong>Abilities:</strong> 13 / 9 / 5 (max 3 before Freebies)</li>
-      <li><strong>Gifts:</strong> 3 (1 Breed, 1 Auspice, 1 Tribe)</li>
-      <li><strong>Backgrounds:</strong> 5</li>
-      <li><strong>Freebie Points:</strong> 15</li>
-    </ul>
-    <h4>Key Traits</h4>
-    <ul>
-      <li><strong>Rage:</strong> By Auspice (Ragabash 1 to Ahroun 5)</li>
-      <li><strong>Gnosis:</strong> By Breed (Homid 1, Metis 3, Lupus 5)</li>
-      <li><strong>Willpower &amp; Renown:</strong> Determined by Tribe &amp; Auspice.</li>
-    </ul>
-    <h4>Freebie Point Costs (15 pts)</h4>
-    <table class="guide-cost-grid">
-      <thead><tr><th>Trait</th><th>Cost</th></tr></thead>
-      <tbody>
-        <tr><td>Attribute</td><td>5 / dot</td></tr>
-        <tr><td>Ability</td><td>2 / dot</td></tr>
-        <tr><td>Gift (Level 1)</td><td>7 / Gift</td></tr>
-        <tr><td>Background</td><td>1 / dot</td></tr>
-        <tr><td>Rage</td><td>1 / dot</td></tr>
-        <tr><td>Gnosis</td><td>2 / dot</td></tr>
-        <tr><td>Willpower</td><td>1 / dot</td></tr>
-        <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
-      </tbody>
-    </table>
-    <h4>Experience Costs (XP)</h4>
-    <table class="guide-cost-grid">
-      <thead><tr><th>Trait</th><th>XP Cost</th></tr></thead>
-      <tbody>
-        <tr><td>New Ability</td><td>3</td></tr>
-        <tr><td>Attribute</td><td>current &times; 4</td></tr>
-        <tr><td>Ability</td><td>current &times; 2</td></tr>
-        <tr><td>In-Breed/Auspice/Tribe Gift</td><td>level &times; 3</td></tr>
-        <tr><td>Outside Gift</td><td>level &times; 5</td></tr>
-        <tr><td>Rage</td><td>current</td></tr>
-        <tr><td>Gnosis</td><td>current &times; 2</td></tr>
-        <tr><td>Willpower</td><td>current</td></tr>
-      </tbody>
-    </table>
-    <h4>Specialties</h4>
-    <p>Attributes and Abilities rated 4+ gain a Specialty.</p>
-  `,
-  mage: `
-    <h4>Creation Process (M20)</h4>
-    <ul>
-      <li><strong>Attributes:</strong> +7 / +5 / +3 priority dots<span class="guide-note">Starts with 1 dot each (10 / 8 / 6 category totals; 24 total)</span></li>
-      <li><strong>Abilities:</strong> 13 / 9 / 5 (max 3 before Freebies)</li>
-      <li><strong>Spheres:</strong> 6 (min 1 in Affinity Sphere)</li>
-      <li><strong>Backgrounds:</strong> 7</li>
-      <li><strong>Freebie Points:</strong> 15</li>
-    </ul>
-    <h4>Key Traits</h4>
-    <ul>
-      <li><strong>Arete:</strong> Starts at 1 (max 3 at creation; caps Spheres)</li>
-      <li><strong>Willpower:</strong> Starts at 5</li>
-      <li><strong>Quintessence:</strong> Starts equal to Avatar rating.</li>
-    </ul>
-    <h4>Freebie Point Costs (15 pts)</h4>
-    <table class="guide-cost-grid">
-      <thead><tr><th>Trait</th><th>Cost</th></tr></thead>
-      <tbody>
-        <tr><td>Attribute</td><td>5 / dot</td></tr>
-        <tr><td>Ability</td><td>2 / dot</td></tr>
-        <tr><td>Sphere</td><td>7 / dot</td></tr>
-        <tr><td>Arete</td><td>4 / dot (max 3)</td></tr>
-        <tr><td>Background</td><td>1 / dot</td></tr>
-        <tr><td>Willpower</td><td>1 / dot</td></tr>
-        <tr><td>Quintessence</td><td>1 / 4 pts</td></tr>
-        <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
-      </tbody>
-    </table>
-    <h4>Experience Costs (XP)</h4>
-    <table class="guide-cost-grid">
-      <thead><tr><th>Trait</th><th>XP Cost</th></tr></thead>
-      <tbody>
-        <tr><td>New Ability</td><td>3</td></tr>
-        <tr><td>New Sphere</td><td>10</td></tr>
-        <tr><td>Attribute</td><td>current &times; 4</td></tr>
-        <tr><td>Ability</td><td>current &times; 2</td></tr>
-        <tr><td>Affinity Sphere</td><td>current &times; 7</td></tr>
-        <tr><td>Other Sphere</td><td>current &times; 8</td></tr>
-        <tr><td>Arete</td><td>current &times; 8</td></tr>
-        <tr><td>Background (ST approval)</td><td>current &times; 3</td></tr>
-        <tr><td>Willpower</td><td>current</td></tr>
-      </tbody>
-    </table>
-    <h4>Specialties</h4>
-    <p>Attributes, Abilities, and Spheres rated 4+ gain a Specialty.</p>
-  `,
-  changeling: `
-    <h4>Creation Process (C20)</h4>
-    <ul>
-      <li><strong>Attributes:</strong> +7 / +5 / +3 priority dots<span class="guide-note">Starts with 1 dot each (10 / 8 / 6 category totals; 24 total)</span></li>
-      <li><strong>Abilities:</strong> 13 / 9 / 5 (max 3 before Freebies)</li>
-      <li><strong>Arts:</strong> 3</li>
-      <li><strong>Realms:</strong> 5</li>
-      <li><strong>Backgrounds:</strong> 5</li>
-      <li><strong>Freebie Points:</strong> 15</li>
-    </ul>
-    <h4>Key Traits</h4>
-    <ul>
-      <li><strong>Base Pools:</strong> Childling: G 5 / WP 3 / B 1. Wilder: G 4 / WP 4 / B 3. Grump: G 3 / WP 5 / B 5.</li>
-      <li><strong>Health:</strong> Chimerical damage knocks unconscious; Real damage can kill.</li>
-    </ul>
-    <h4>Freebie Point Costs (15 pts)</h4>
-    <table class="guide-cost-grid">
-      <thead><tr><th>Trait</th><th>Cost</th></tr></thead>
-      <tbody>
-        <tr><td>Attribute</td><td>5 / dot</td></tr>
-        <tr><td>Ability</td><td>2 / dot</td></tr>
-        <tr><td>Art</td><td>5 / dot</td></tr>
-        <tr><td>Realm</td><td>3 / dot</td></tr>
-        <tr><td>Background</td><td>1 / dot</td></tr>
-        <tr><td>Glamour</td><td>3 / dot</td></tr>
-        <tr><td>Willpower</td><td>2 / dot</td></tr>
-        <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
-      </tbody>
-    </table>
-    <h4>Experience Costs (XP)</h4>
-    <table class="guide-cost-grid">
-      <thead><tr><th>Trait</th><th>XP Cost</th></tr></thead>
-      <tbody>
-        <tr><td>New Ability</td><td>3</td></tr>
-        <tr><td>New Art / New Realm</td><td>7 / 5</td></tr>
-        <tr><td>Attribute</td><td>current &times; 4</td></tr>
-        <tr><td>Ability</td><td>current &times; 2</td></tr>
-        <tr><td>Art</td><td>current &times; 4</td></tr>
-        <tr><td>Realm</td><td>current &times; 3</td></tr>
-        <tr><td>Glamour</td><td>current &times; 2</td></tr>
-        <tr><td>Willpower</td><td>current &times; 2</td></tr>
-      </tbody>
-    </table>
-    <h4>Specialties</h4>
-    <p>Attributes and Abilities rated 4+ gain a Specialty.</p>
-  `,
-  wraith: `
-    <h4>Creation Process (Wr20)</h4>
-    <ul>
-      <li><strong>Attributes:</strong> +7 / +5 / +3 priority dots<span class="guide-note">Starts with 1 dot each (10 / 8 / 6 category totals; 24 total)</span></li>
-      <li><strong>Abilities:</strong> 13 / 9 / 5 (max 3 before Freebies)</li>
-      <li><strong>Arcanoi:</strong> 5 (min 1 in Guild Arcanos)</li>
-      <li><strong>Backgrounds:</strong> 7</li>
-      <li><strong>Passions / Fetters:</strong> 10 / 10 (max 5 each)</li>
-      <li><strong>Freebie Points:</strong> 15</li>
-    </ul>
-    <h4>Key Traits</h4>
-    <ul>
-      <li><strong>Corpus:</strong> 10 (Permanent)</li>
-      <li><strong>Willpower:</strong> Starts at 5</li>
-      <li><strong>Pathos:</strong> Starts at 5 + Memoriam rating.</li>
-    </ul>
-    <h4>Freebie Point Costs (15 pts)</h4>
-    <table class="guide-cost-grid">
-      <thead><tr><th>Trait</th><th>Cost</th></tr></thead>
-      <tbody>
-        <tr><td>Attribute</td><td>5 / dot</td></tr>
-        <tr><td>Ability</td><td>2 / dot</td></tr>
-        <tr><td>Arcanos</td><td>5 / dot</td></tr>
-        <tr><td>Background</td><td>1 / dot</td></tr>
-        <tr><td>Passion</td><td>2 / dot</td></tr>
-        <tr><td>Fetter / Pathos / Willpower</td><td>1 / dot</td></tr>
-        <tr><td>Merits / Flaws</td><td>Rating (Flaws max +7)</td></tr>
-      </tbody>
-    </table>
-    <h4>Experience Costs (XP)</h4>
-    <table class="guide-cost-grid">
-      <thead><tr><th>Trait</th><th>XP Cost</th></tr></thead>
-      <tbody>
-        <tr><td>New Ability</td><td>3</td></tr>
-        <tr><td>New Arcanos (Guild)</td><td>7 (5)</td></tr>
-        <tr><td>New Passion / Fetter</td><td>3</td></tr>
-        <tr><td>Attribute</td><td>current &times; 4</td></tr>
-        <tr><td>Ability</td><td>current &times; 2</td></tr>
-        <tr><td>Arcanos (Guild)</td><td>current &times; 3 (&times; 2)</td></tr>
-        <tr><td>Passion / Fetter</td><td>current &times; 3</td></tr>
-        <tr><td>Pathos</td><td>current &times; 2</td></tr>
-        <tr><td>Willpower</td><td>current</td></tr>
-      </tbody>
-    </table>
-    <h4>Specialties</h4>
-    <p>Attributes and Abilities rated 4+ gain a Specialty.</p>
-  `
-};
-
 function getDotVal(container, id) {
   const el = container.querySelector(`[data-id="${id}"]`);
   return el ? parseInt(el.dataset.val || '0', 10) : 0;
@@ -3280,139 +3195,159 @@ function updateGuideTally() {
   const tallyEl = document.getElementById('guideTally');
   const active = document.getElementById('splat-' + currentSplat);
   if (!tallyEl || !active) return;
-
-  const phys = ['str', 'dex', 'sta'].reduce((s, k) => s + getDotVal(active, `${currentSplat}_attr_${k}`), 0);
-  const soc = ['cha', 'man', 'app'].reduce((s, k) => s + getDotVal(active, `${currentSplat}_attr_${k}`), 0);
-  const ment = ['per', 'int', 'wit'].reduce((s, k) => s + getDotVal(active, `${currentSplat}_attr_${k}`), 0);
-  const attrTotal = phys + soc + ment;
-  const pSpent = phys - 3;
-  const sSpent = soc - 3;
-  const mSpent = ment - 3;
-  const fmtSpent = (n) => (n >= 0 ? `+${n}` : `${n}`);
-  const expectedAttrTotal = currentSplat === 'mortal' ? 22 : 24;
-
-  const tal = sumDotsByPrefix(active, [`${currentSplat}_abi_0_`, `${currentSplat}_custom_abi_0_`]);
-  const ski = sumDotsByPrefix(active, [`${currentSplat}_abi_1_`, `${currentSplat}_custom_abi_1_`]);
-  const kno = sumDotsByPrefix(active, [`${currentSplat}_abi_2_`, `${currentSplat}_custom_abi_2_`]);
-  const abiTotal = tal + ski + kno;
-
-  let advSummary = '';
-  if (currentSplat === 'mortal') {
-    const numina = sumDotsByPrefix(active, ['mortal_adv_0_']);
-    const bgs = sumDotsByPrefix(active, ['mortal_adv_1_']);
-    const virt = sumDotsByPrefix(active, ['mortal_adv_2_']);
-    advSummary = `Numina ${numina} · BGs ${bgs} · Virtues ${virt}`;
-  } else if (currentSplat === 'vampire') {
-    const disc = sumDotsByPrefix(active, ['vampire_adv_0_']);
-    const bgs = sumDotsByPrefix(active, ['vampire_adv_1_']);
-    const virt = sumDotsByPrefix(active, ['vampire_adv_2_']);
-    advSummary = `Disc ${disc} · BGs ${bgs} · Virtues ${virt}`;
-  } else if (currentSplat === 'werewolf') {
-    const bgs = sumDotsByPrefix(active, ['werewolf_adv_0_']);
-    const gifts = sumDotsByPrefix(active, ['werewolf_adv_1_', 'werewolf_adv_2_']);
-    const renown = ['glory', 'honor', 'wisdom'].reduce((s, k) => s + getDotVal(active, `werewolf_${k}_dots`), 0);
-    advSummary = `BGs ${bgs} · Gifts ${gifts} · Renown ${renown}`;
-  } else if (currentSplat === 'mage') {
-    const spheres = sumDotsByPrefix(active, ['mage_adv_0_']);
-    const bgs = sumDotsByPrefix(active, ['mage_adv_1_']);
-    const other = sumDotsByPrefix(active, ['mage_adv_2_']);
-    advSummary = `Spheres ${spheres} · BGs ${bgs} · Other ${other}`;
-  } else if (currentSplat === 'changeling') {
-    const bgs = sumDotsByPrefix(active, ['changeling_adv_0_']);
-    const arts = sumDotsByPrefix(active, ['changeling_adv_1_']);
-    const realms = sumDotsByPrefix(active, ['changeling_adv_2_']);
-    advSummary = `BGs ${bgs} · Arts ${arts} · Realms ${realms}`;
-  } else if (currentSplat === 'wraith') {
-    const bgs = sumDotsByPrefix(active, ['wraith_adv_0_']);
-    const arcanoi = sumDotsByPrefix(active, ['wraith_adv_1_']);
-    const pf = sumDotsByPrefix(active, ['wraith_adv_2_']);
-    advSummary = `BGs ${bgs} · Arcanoi ${arcanoi} · P&F ${pf}`;
-  }
-
-  tallyEl.innerHTML = `
-    <div class="guide-tally-title">Current Sheet Dot Tally</div>
-    <div class="guide-tally-row">
-      <span class="guide-tally-label">Attributes:</span>
-      <span class="guide-tally-val">${fmtSpent(pSpent)} / ${fmtSpent(sSpent)} / ${fmtSpent(mSpent)} <span class="guide-tally-total">(${attrTotal}/${expectedAttrTotal})</span></span>
-    </div>
-    <div class="guide-tally-row">
-      <span class="guide-tally-label">Abilities:</span>
-      <span class="guide-tally-val">T ${tal} / S ${ski} / K ${kno} <span class="guide-tally-total">(${abiTotal})</span></span>
-    </div>
-    <div class="guide-tally-row">
-      <span class="guide-tally-label">Advantages:</span>
-      <span class="guide-tally-val">${advSummary}</span>
-    </div>
-  `;
+  const c = computeCreation(captureCurrentState());
+  if (!c) return;
+  tallyEl.innerHTML = renderCreationPoints(c);
+  bindTallyToggles(tallyEl);
 }
 
-const DOT_SCALE_GUIDE_HTML = `
-  <h4>Global Dot Rating Scale (0–5: Standard Scale)</h4>
-  <table class="guide-scale-table">
-    <thead><tr><th>Dots</th><th>Rating &amp; Meaning</th></tr></thead>
-    <tbody>
-      <tr>
-        <td class="guide-scale-dots">0</td>
-        <td><span class="guide-scale-rating">Untrained</span>Zero experience or conditioning; must rely on blind luck and cannot attempt specialized tasks.<span class="guide-scale-example">e.g., Someone who has never sat behind the wheel of a car.</span></td>
-      </tr>
-      <tr>
-        <td class="guide-scale-dots">1</td>
-        <td><span class="guide-scale-rating">Rookie</span>Basic familiarity; handles routine, low-stakes tasks fine but falters under real pressure.<span class="guide-scale-example">e.g., A weekend jogger, home cook, or first-month boxing student.</span></td>
-      </tr>
-      <tr>
-        <td class="guide-scale-dots">2</td>
-        <td><span class="guide-scale-rating">Seasoned</span>Solid, everyday proficiency; the healthy adult or working-professional standard.<span class="guide-scale-example">e.g., A patrol officer, auto mechanic, or regular gym-goer.</span></td>
-      </tr>
-      <tr>
-        <td class="guide-scale-dots">3</td>
-        <td><span class="guide-scale-rating">Veteran</span>Accomplished specialist tested under fire; respected in their field and able to train others.<span class="guide-scale-example">e.g., A SWAT operator, ER trauma surgeon, or regional amateur champ.</span></td>
-      </tr>
-      <tr>
-        <td class="guide-scale-dots">4</td>
-        <td><span class="guide-scale-rating">Elite</span>Standout, top-1% practitioner in a major city; reputation precedes them and shifts the odds of a scene.<span class="guide-scale-example">e.g., An Olympic qualifier, chief neurosurgeon, or top syndicate enforcer.</span></td>
-      </tr>
-      <tr>
-        <td class="guide-scale-dots">5</td>
-        <td><span class="guide-scale-rating">Apex</span>The ceiling of unaugmented mortal potential and the standard cap for starting supernatural characters; a once-in-a-generation prodigy.<span class="guide-scale-example">e.g., An Olympic gold medalist, Nikola Tesla, or Miyamoto Musashi.</span></td>
-      </tr>
-    </tbody>
-  </table>
+const STEP_ICON = { done: '✓', doing: '◐', over: '!', xp: '+', todo: '' };
 
-  <details id="guideElderScaleDetails" class="guide-elder-details">
-    <summary class="guide-elder-summary">
-      <span>6–10: Elder &amp; Mythic</span>
-      <span id="guideElderBadge" class="guide-elder-badge">10-Dot Mode Off</span>
-    </summary>
-    <div class="guide-elder-body">
-      <p class="guide-scale-intro">Both mortals and standard supernatural characters hard-cap at <strong>5 dots</strong>; ratings from <strong>6–10</strong> only unlock in <strong>10-Dot Mode</strong> for ancient Elders (7th Gen or lower), high-rank shifters, archmages, and mythic beings.</p>
-      <table class="guide-scale-table">
-        <thead><tr><th>Dots</th><th>Rating &amp; Meaning</th></tr></thead>
-        <tbody>
-          <tr>
-            <td class="guide-scale-dots">6</td>
-            <td><span class="guide-scale-rating">Preternatural</span>Visibly surpasses human limits; impossible without ancient blood, deep spiritual might, or Awakened mastery.<span class="guide-scale-example">e.g., A mythic hero bending iron bars barehanded.</span></td>
-          </tr>
-          <tr>
-            <td class="guide-scale-dots">7</td>
-            <td><span class="guide-scale-rating">Mythic</span>A force of nature whose feats defy mundane physics or historical records.<span class="guide-scale-example">e.g., Hercules wrestling monstrous beasts.</span></td>
-          </tr>
-          <tr>
-            <td class="guide-scale-dots">8</td>
-            <td><span class="guide-scale-rating">Legendary</span>Near-unstoppable within their domain; whispered of across entire factions or centuries.<span class="guide-scale-example">e.g., Achilles turning the tide of an entire war single-handedly.</span></td>
-          </tr>
-          <tr>
-            <td class="guide-scale-dots">9</td>
-            <td><span class="guide-scale-rating">Incarnate</span>A walking embodiment of the trait itself; ordinary characters cannot meaningfully contest this rating.<span class="guide-scale-example">e.g., Sun Wukong or mythic Thor shattering mountains.</span></td>
-          </tr>
-          <tr>
-            <td class="guide-scale-dots">10</td>
-            <td><span class="guide-scale-rating">Primordial</span>Plot-device tier; reality bends around the sheer weight of this trait.<span class="guide-scale-example">e.g., Odin or Zeus—narrative forces where rolling dice is a formality.</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </details>
-`;
+function renderCreationPoints(c) {
+  const esc = escapeHtmlForDice;
+  const open = (key, dflt) => {
+    try { const v = localStorage.getItem(key); return v === null ? dflt : v === '1'; } catch (e) { return dflt; }
+  };
+  const x = c.xp || { beyond: false, total: 0, byGroup: {}, storyteller: [], approval: [], assumed: [] };
+  const beyond = x.beyond;
+  const xpOf = (label) => x.byGroup[label] || 0;
+  const xpTag = (n) => `<span class="tally-xp">+${n} XP</span>`;
+  const stOf = (label) => (x.storyteller.find(s => s.label === label) || {}).dots || 0;
+
+  const priorityBlock = (title, block, groupNames, extraHtml = '') => {
+    const pr = block.priorities;
+    const rows = block.groups.map(g => {
+      let tag = '<span class="tally-slot is-empty">not started</span>';
+      if (g.spent > 0) tag = `<span class="tally-slot" title="Counted as the group that gets ${g.slot}">your ${g.slot} group</span>`;
+      let status;
+      if (g.spent === 0) status = '';
+      else if (beyond) status = xpOf(g.name) ? xpTag(xpOf(g.name)) : (g.left ? `<span class="tally-left">${g.left} to go</span>` : '<span class="tally-ok">full</span>');
+      else status = g.over ? `<span class="tally-over">+${g.over} over</span>` : (g.left ? `<span class="tally-left">${g.left} to go</span>` : '<span class="tally-ok">full</span>');
+      const flag = beyond ? '' : (g.over ? ' is-over' : '');
+      return `<div class="guide-tally-row${flag}"><span class="guide-tally-label">${g.name}</span><span class="guide-tally-val"><b>${g.spent}</b> ${tag} ${status}</span></div>`;
+    }).join('');
+    const blockXp = block.groups.reduce((s, g) => s + xpOf(g.name), 0);
+    let summary;
+    if (!block.started) summary = `${block.budget} dots to place`;
+    else if (beyond && blockXp) summary = `<span class="tally-xp">≈ ${blockXp} XP</span>`;
+    else if (!beyond && block.over) summary = `<span class="tally-over">${block.over} over (Freebies)</span>`;
+    else summary = block.left ? `${block.left} left to place` : '<span class="tally-ok">all placed</span>';
+    return `
+      <div class="tally-block">
+        <div class="guide-tally-group"><span>${title}</span><span class="tally-block-sum">${block.spent} / ${block.budget} · ${summary}</span></div>
+        <p class="tally-how"><b>Any order you like:</b> ${pr[0]} · ${pr[1]} · ${pr[2]} across ${groupNames}. Your biggest group counts as the ${pr[0]}.</p>
+        ${rows}
+        ${extraHtml}
+      </div>`;
+  };
+
+  const attrHtml = priorityBlock('Attributes', c.attributes, 'Physical, Social and Mental')
+    .replace('</p>', ' The free first dot in each Attribute isn\'t counted.</p>');
+  const aboveThreeRow = (!beyond && c.abilities.aboveThree)
+    ? `<div class="guide-tally-row is-over"><span class="guide-tally-label">Above 3 dots</span><span class="guide-tally-val"><b>${c.abilities.aboveThree}</b> ${c.abilities.aboveThree === 1 ? 'Ability' : 'Abilities'} <span class="tally-over" title="No Ability can go above 3 with starting dots; the extra dots come from Freebie Points">needs Freebies</span></span></div>`
+    : '';
+  const abilHtml = priorityBlock('Abilities', c.abilities, 'Talents, Skills and Knowledges', aboveThreeRow);
+
+  const traitRows = c.traits.map(t => {
+    let status;
+    if (beyond && t.over) {
+      const bits = [];
+      if (xpOf(t.label)) bits.push(xpTag(xpOf(t.label)));
+      if (stOf(t.label)) bits.push(`<span class="tally-left" title="This game line sets no XP price for these; the Storyteller decides">+${stOf(t.label)} · Storyteller</span>`);
+      status = bits.length ? bits.join(' ') : '<span class="tally-ok">Freebies</span>';
+    } else {
+      status = t.over ? `<span class="tally-over">+${t.over} over</span>` : (t.spent === 0 ? `<span class="tally-left">${t.limit ? t.limit + ' to place' : 'Freebies only'}</span>` : (t.left ? `<span class="tally-left">${t.left} to go</span>` : '<span class="tally-ok">full</span>'));
+    }
+    const flag = (!beyond && t.over) ? ' is-over' : '';
+    return `<div class="guide-tally-row${flag}"><span class="guide-tally-label">${esc(t.label)}</span><span class="guide-tally-val"><b>${t.spent}</b> of ${t.limit} ${status}</span></div>`;
+  }).join('');
+
+  const f = c.freebies;
+  const fpPhrase = x.freebieBudget === f.budget
+    ? `all ${f.budget} Freebie Points`
+    : `all ${f.budget} Freebie Points (${x.freebieBudget} after Merits and Flaws)`;
+  const notCounted = f.notCounted.length ? `Not counted: ${esc(f.notCounted.join(', '))} (the starting value depends on choices the sheet can't read).` : '';
+
+  let lastBlock;
+  if (!beyond) {
+    const fClass = f.used > f.budget ? 'tally-over' : (f.used === f.budget ? 'tally-ok' : 'tally-left');
+    const fParts = f.parts.length
+      ? f.parts.map(p => `<div class="guide-tally-row"><span class="guide-tally-label">${esc(p.label)}</span><span class="guide-tally-val">${p.pts > 0 ? '' : '−'}${Math.abs(p.pts)}</span></div>`).join('')
+      : '<p class="tally-how">Nothing above the starting dots yet.</p>';
+    const fNote = [notCounted, f.flawsCapped ? 'Flaws above 7 points give no extra Freebies.' : ''].filter(Boolean).join(' ');
+    lastBlock = `
+      <div class="tally-block">
+        <details class="tally-freebies" data-store="${TALLY_FREEBIE_OPEN_KEY}"${open(TALLY_FREEBIE_OPEN_KEY, false) ? ' open' : ''}>
+          <summary class="guide-tally-group"><span>Freebie Points (estimate)</span><span class="tally-block-sum ${fClass}">${f.used} / ${f.budget}</span></summary>
+          ${fParts}
+          ${fNote ? `<p class="tally-how">${fNote}</p>` : ''}
+        </details>
+      </div>`;
+  } else {
+    const order = [...c.attributes.groups.map(g => g.name), ...c.abilities.groups.map(g => g.name), ...c.traits.map(t => t.label), ...c.pools.map(p => p.label)];
+    const xpRows = order.filter(l => xpOf(l)).map(l =>
+      `<div class="guide-tally-row"><span class="guide-tally-label">${esc(l)}${x.approval.includes(l) ? ' <span class="tally-slot" title="Needs the Storyteller\'s approval">ST approval</span>' : ''}</span><span class="guide-tally-val">${xpOf(l)}</span></div>`).join('');
+    const stRows = x.storyteller.map(s =>
+      `<div class="guide-tally-row"><span class="guide-tally-label">${esc(s.label)}</span><span class="guide-tally-val">+${s.dots} ${s.dots === 1 ? 'dot' : 'dots'} · Storyteller</span></div>`).join('');
+    const xNote = [
+      `${fpPhrase.charAt(0).toUpperCase() + fpPhrase.slice(1)} are counted as spent, then XP covers the rest. The sheet can't see the order dots were bought in, so this takes the cheapest order: starting dots and Freebies go where they save the most XP.`,
+      x.assumed.length ? `Assumed: ${esc(x.assumed.join('; '))}.` : '',
+      x.storyteller.length ? 'Storyteller rows have no XP price in this game line.' : '',
+      notCounted
+    ].filter(Boolean).join(' ');
+    lastBlock = `
+      <div class="tally-block">
+        <details class="tally-freebies" data-store="${TALLY_FREEBIE_OPEN_KEY}"${open(TALLY_FREEBIE_OPEN_KEY, false) ? ' open' : ''}>
+          <summary class="guide-tally-group"><span>XP beyond creation (estimate)</span><span class="tally-block-sum tally-xp">≈ ${x.total} XP</span></summary>
+          ${xpRows}
+          ${stRows}
+          <p class="tally-how">${xNote}</p>
+        </details>
+      </div>`;
+  }
+
+  const steps = c.steps.map((st, i) => `<li class="tally-step is-${st.state}" title="${esc(st.hint)}"><span class="tally-step-dot">${STEP_ICON[st.state] || i + 1}</span><span>${st.label}</span></li>`).join('');
+  const overCount = c.attributes.over + c.abilities.over + c.traits.reduce((s, t) => s + t.over, 0);
+  let headline;
+  let headClass = '';
+  if (beyond) {
+    headline = x.total ? `≈ ${x.total} XP beyond creation` : 'Beyond creation';
+    headClass = ' has-xp';
+  } else if (f.used > f.budget) {
+    headline = `${f.used - f.budget} Freebies over`;
+    headClass = ' has-over';
+  } else {
+    headline = overCount || f.used ? `${f.used} / ${f.budget} Freebies` : 'within starting dots';
+  }
+  const note = beyond
+    ? `Past the starting dots and ${fpPhrase}, so the extra is shown as XP. A guide only; you can always add more dots.`
+    : 'A guide only; you can always add more dots. Anything above the starting dots shows as <span class="tally-over">over</span> and is paid with Freebie Points. Once those run out, the counter switches to XP.';
+
+  return `
+    <details class="guide-tally-details" data-store="${TALLY_OPEN_STORAGE_KEY}"${open(TALLY_OPEN_STORAGE_KEY, true) ? ' open' : ''}>
+      <summary class="guide-tally-title"><span>Creation Points</span><span class="guide-tally-summary${headClass}">${headline}</span></summary>
+      <ol class="tally-steps" aria-label="Creation steps">${steps}</ol>
+      <p class="guide-tally-note">${note}</p>
+      ${attrHtml}
+      ${abilHtml}
+      <div class="tally-block">
+        <div class="guide-tally-group"><span>Advantages</span><span class="tally-block-sum">fixed amounts</span></div>
+        ${traitRows}
+      </div>
+      ${lastBlock}
+    </details>`;
+}
+
+function bindTallyToggles(tallyEl) {
+  if (tallyEl.dataset.bound) return;
+  tallyEl.dataset.bound = '1';
+  // "toggle" does not bubble, so listen in the capture phase; the markup is rebuilt on every change
+  tallyEl.addEventListener('toggle', (e) => {
+    const key = e.target && e.target.dataset ? e.target.dataset.store : null;
+    if (!key) return;
+    try { localStorage.setItem(key, e.target.open ? '1' : '0'); } catch (err) { /* ignore */ }
+  }, true);
+}
 
 let activeGuideTab = 'creation';
 
@@ -3506,15 +3441,7 @@ function toggleDicePanel(forceOpen) {
 }
 
 function getActiveWoundPenalty(splat = currentSplat) {
-  const map = [
-    { penalty: 0, label: 'Healthy (0)', incapacitated: false },
-    { penalty: -1, label: 'Hurt (-1)', incapacitated: false },
-    { penalty: -1, label: 'Injured (-1)', incapacitated: false },
-    { penalty: -2, label: 'Wounded (-2)', incapacitated: false },
-    { penalty: -2, label: 'Mauled (-2)', incapacitated: false },
-    { penalty: -5, label: 'Crippled (-5)', incapacitated: false },
-    { penalty: -99, label: 'Incapacitated', incapacitated: true }
-  ];
+  const map = WOUND_LEVELS;
   if (splat === 'changeling') {
     const r = getTrackPenaltyIndex('changeling', 'changeling_hlth_real');
     const c = getTrackPenaltyIndex('changeling', 'changeling_hlth_chim');
@@ -3563,6 +3490,14 @@ function syncDiceWoundPenalty() {
   if (!woundRow || !woundLabel) return;
 
   const wound = getActiveWoundPenalty(currentSplat);
+  const initRow = document.getElementById('diceInitWoundRow');
+  const initLabel = document.getElementById('diceInitWoundLabel');
+  if (initRow && initLabel) {
+    initRow.style.display = wound.penalty < 0 ? 'flex' : 'none';
+    initLabel.innerHTML = wound.incapacitated
+      ? 'Apply Wound Status to Initiative <strong style="color:#ff7b7b;">(Incapacitated)</strong>'
+      : `Apply Wound Penalty to Initiative <strong>(${wound.penalty})</strong>`;
+  }
   if (wound.penalty < 0) {
     woundRow.style.display = 'flex';
     woundLabel.innerHTML = wound.incapacitated
@@ -3672,65 +3607,21 @@ function escapeHtmlForDice(str) {
   return String(str).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
 
-function rollSingleD10() {
-  if (window.crypto && window.crypto.getRandomValues) {
-    const arr = new Uint32Array(1);
-    window.crypto.getRandomValues(arr);
-    return (arr[0] % 10) + 1;
-  }
-  return Math.floor(Math.random() * 10) + 1;
-}
-
 function executeWodRoll() {
-  const basePool = Math.max(0, Math.min(50, parseInt(document.getElementById('dicePoolInput').value, 10) || 0));
-  const difficulty = Math.max(2, Math.min(10, parseInt(document.getElementById('diceDiffInput').value, 10) || 6));
   const specialty = document.getElementById('diceSpecialtyToggle').checked;
   const spendWp = document.getElementById('diceWillpowerToggle').checked;
   const woundToggle = document.getElementById('diceWoundToggle');
   const wound = getActiveWoundPenalty(currentSplat);
-  const applyWound = woundToggle && woundToggle.checked && wound.penalty < 0;
-
-  const effectivePool = (applyWound && wound.incapacitated)
-    ? 0
-    : Math.max(0, basePool + (applyWound ? wound.penalty : 0));
-
-  const dice = [];
-  let rawSuccesses = 0;
-  let ones = 0;
-
-  for (let i = 0; i < effectivePool; i++) {
-    const val = rollSingleD10();
-    dice.push({ val });
-    
-    if (val === 1) {
-      ones++;
-    } else if (val >= difficulty) {
-      if (specialty && val === 10) {
-        rawSuccesses += 2;
-      } else {
-        rawSuccesses += 1;
-      }
-    }
-  }
-
-  const isBotch = effectivePool > 0 && rawSuccesses === 0 && ones > 0 && !spendWp;
-  const rolledNet = rawSuccesses - ones;
-  const netSuccesses = spendWp ? Math.max(0, rolledNet) + 1 : rolledNet;
-
-  let outcomeLabel = '';
-  let outcomeClass = 'outcome-fail';
-  if (isBotch) {
-    outcomeLabel = `BOTCH! (${ones} ${ones === 1 ? 'One' : 'Ones'})`;
-    outcomeClass = 'outcome-botch';
-  } else if (netSuccesses <= 0) {
-    outcomeLabel = `Failure (${Math.max(0, netSuccesses)} Net Successes)`;
-    outcomeClass = 'outcome-fail';
-  } else {
-    const tiers = ['', 'Marginal', 'Moderate', 'Complete', 'Exceptional', 'Phenomenal'];
-    const tier = netSuccesses >= 5 ? 'Phenomenal' : tiers[netSuccesses];
-    outcomeLabel = `${netSuccesses} ${netSuccesses === 1 ? 'Success' : 'Successes'} — ${tier}`;
-    outcomeClass = netSuccesses >= 4 ? 'outcome-phenomenal' : 'outcome-success';
-  }
+  const result = resolveRoll({
+    pool: document.getElementById('dicePoolInput').value,
+    difficulty: document.getElementById('diceDiffInput').value,
+    specialty,
+    willpower: spendWp,
+    wound,
+    applyWound: Boolean(woundToggle && woundToggle.checked)
+  });
+  const { difficulty, effectivePool, dice, outcomeLabel, outcomeClass } = result;
+  const applyWound = result.wounded;
 
   const resultBox = document.getElementById('diceResultBox');
   const outcomeEl = document.getElementById('diceOutcomeText');
@@ -3768,9 +3659,8 @@ function executeWodRoll() {
   const summary = `${prefix}${traitDesc} (${effectivePool}d10, Diff ${difficulty}${modStr}): [${diceStr}] → ${outcomeLabel}`;
 
   lastRollClipboardText = summary;
-  diceRollHistory.unshift({ traitDesc, outcomeLabel, outcomeClass, summary });
-  if (diceRollHistory.length > 8) diceRollHistory.pop();
-  renderRollHistory();
+  pushRollHistory({ traitDesc, outcomeLabel, outcomeClass, summary });
+  play3dRoll(dice.map(d => ({ value: d.val, tone: toneFor(d.val, difficulty) })));
 }
 
 
@@ -3778,9 +3668,12 @@ function executeInitiativeRoll() {
   const active = document.getElementById('splat-' + currentSplat);
   const dex = active ? getEffectiveAttrVal(currentSplat, 'dex', active) : 0;
   const wit = active ? getDotVal(active, `${currentSplat}_attr_wit`) : 0;
-  const woundToggle = document.getElementById('diceWoundToggle');
+  const initWoundToggle = document.getElementById('diceInitWoundToggle');
   const wound = getActiveWoundPenalty(currentSplat);
-  const applyWound = woundToggle && woundToggle.checked && wound.penalty < 0;
+  const init = resolveInitiative({
+    dex, wits: wit, wound,
+    applyWound: Boolean(initWoundToggle && initWoundToggle.checked)
+  });
 
   const resultBox = document.getElementById('diceResultBox');
   const outcomeEl = document.getElementById('diceOutcomeText');
@@ -3790,23 +3683,19 @@ function executeInitiativeRoll() {
 
   resultBox.style.display = 'block';
 
-  if (applyWound && wound.incapacitated) {
+  if (init.incapacitated) {
     const outcomeLabel = 'Incapacitated (Cannot Act)';
     outcomeEl.textContent = outcomeLabel;
     outcomeEl.className = 'dice-outcome outcome-botch';
     trayEl.innerHTML = '<span style="font-size:11px; color:#888;">Incapacitated — cannot roll Initiative</span>';
+    play3dRoll([]);
     const summary = `${prefix}Initiative: ${outcomeLabel}`;
     lastRollClipboardText = summary;
-    diceRollHistory.unshift({ traitDesc: 'Initiative', outcomeLabel, outcomeClass: 'outcome-botch', summary });
-    if (diceRollHistory.length > 8) diceRollHistory.pop();
-    renderRollHistory();
+    pushRollHistory({ traitDesc: 'Initiative', outcomeLabel, outcomeClass: 'outcome-botch', summary });
     return;
   }
 
-  const die = rollSingleD10();
-  const woundMod = applyWound ? wound.penalty : 0;
-  const total = die + dex + wit + woundMod;
-
+  const { die, woundMod, total } = init;
   const parts = [`d10: ${die}`, `Dex ${dex}`, `Wits ${wit}`];
   if (woundMod < 0) parts.push(`Wound ${woundMod}`);
   const breakdown = parts.join(' + ').replace('+ Wound -', '- Wound ');
@@ -3822,14 +3711,151 @@ function executeInitiativeRoll() {
   const modStr = woundMod < 0 ? `, Wound ${woundMod}` : '';
   const summary = `${prefix}Initiative (1d10 + Dex ${dex} + Wits ${wit}${modStr}): [${die}] → ${total}`;
   lastRollClipboardText = summary;
-  diceRollHistory.unshift({
+  pushRollHistory({
     traitDesc: 'Initiative',
     outcomeLabel: `${total} (${breakdown})`,
     outcomeClass,
     summary
   });
-  if (diceRollHistory.length > 8) diceRollHistory.pop();
+  play3dRoll([{ value: die, tone: die === 10 ? 'ten' : (die === 1 ? 'one' : 'success') }]);
+}
+
+function pushRollHistory(item) {
+  diceRollHistory.unshift({ ...item, at: Date.now() });
+  if (diceRollHistory.length > ROLL_HISTORY_MAX) diceRollHistory.length = ROLL_HISTORY_MAX;
+  saveRollHistory();
   renderRollHistory();
+}
+
+function saveRollHistory() {
+  try {
+    if (diceRollHistory.length) localStorage.setItem(ROLL_HISTORY_STORAGE_KEY, JSON.stringify(diceRollHistory));
+    else localStorage.removeItem(ROLL_HISTORY_STORAGE_KEY);
+  } catch (e) { console.warn('Roll history not saved:', e); }
+}
+
+function loadRollHistory() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ROLL_HISTORY_STORAGE_KEY) || '[]');
+    if (Array.isArray(raw)) {
+      diceRollHistory = raw
+        .filter(r => r && typeof r.summary === 'string' && typeof r.traitDesc === 'string' && typeof r.outcomeLabel === 'string')
+        .slice(0, ROLL_HISTORY_MAX)
+        .map(r => ({
+          traitDesc: r.traitDesc.slice(0, 300),
+          outcomeLabel: r.outcomeLabel.slice(0, 300),
+          outcomeClass: /^outcome-[a-z]+$/.test(r.outcomeClass) ? r.outcomeClass : '',
+          summary: r.summary.slice(0, 2000),
+          at: Number(r.at) || 0
+        }));
+    }
+  } catch (e) { diceRollHistory = []; }
+  renderRollHistory();
+}
+
+let dice3dStage = null;
+let dice3dToken = 0;
+
+function dice3dEnabled() {
+  const t = document.getElementById('dice3dToggle');
+  return Boolean(t && t.checked);
+}
+
+// Animates the already-decided dice; the outcome text and badges appear when they land.
+// Used by the roll menu, search and quick buttons: select one trait and roll it at once.
+const PRINT_PREFS_KEY = 'wod_sheet_print_prefs_v1';
+
+function bindPrintDialog() {
+  const dlg = document.getElementById('printDialog');
+  if (!dlg) return;
+  try {
+    const prefs = JSON.parse(localStorage.getItem(PRINT_PREFS_KEY) || '{}');
+    if (prefs.layout === 'compact') dlg.querySelector('input[value="compact"]').checked = true;
+    if (prefs.bio === false) document.getElementById('printIncludeBio').checked = false;
+    if (prefs.portrait === false) document.getElementById('printIncludePortrait').checked = false;
+  } catch (e) { /* defaults */ }
+  document.getElementById('printCancelBtn').addEventListener('click', () => closeModal(dlg));
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) closeModal(dlg); });
+  document.getElementById('printGoBtn').addEventListener('click', async () => {
+    const layout = dlg.querySelector('input[name="printLayout"]:checked')?.value || 'full';
+    const bio = document.getElementById('printIncludeBio').checked;
+    const portrait = document.getElementById('printIncludePortrait').checked;
+    try { localStorage.setItem(PRINT_PREFS_KEY, JSON.stringify({ layout, bio, portrait })); } catch (e) { /* ignore */ }
+    closeModal(dlg);
+
+    const active = document.getElementById('splat-' + currentSplat);
+    if (active) autoResizeTextareas(active);
+    document.body.classList.toggle('print-compact', layout === 'compact');
+    document.body.classList.toggle('print-no-portrait', !portrait);
+    const omitted = [];
+    if (!bio && active) {
+      const bioHeader = Array.from(active.querySelectorAll('.wod-header')).find(h => /description/i.test(h.textContent));
+      for (let el = bioHeader; el; el = el.nextElementSibling) { el.classList.add('print-omit'); omitted.push(el); }
+    }
+    const cleanup = () => {
+      document.body.classList.remove('print-compact', 'print-no-portrait');
+      omitted.forEach(el => el.classList.remove('print-omit'));
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    await generateShareUrl({ copyToClipboard: true, showNotification: true });
+    window.print();
+  });
+}
+
+function rollFromSheetElement(el, { specialty = false, willpower = false } = {}) {
+  clearDiceSelection();
+  el.click();
+  const spec = document.getElementById('diceSpecialtyToggle');
+  const wp = document.getElementById('diceWillpowerToggle');
+  if (spec) spec.checked = Boolean(specialty);
+  if (wp) wp.checked = Boolean(willpower);
+  toggleDicePanel(true);
+  executeWodRoll();
+}
+
+function play3dRoll(values) {
+  const canvas = document.getElementById('dice3dCanvas');
+  const box = document.getElementById('diceResultBox');
+  if (!canvas || !box) return;
+  const token = ++dice3dToken;
+  if (!dice3dEnabled() || !values.length) {
+    canvas.hidden = true;
+    box.classList.remove('is-rolling');
+    return;
+  }
+  canvas.hidden = false;
+  if (!dice3dStage) dice3dStage = createDiceStage(canvas);
+  box.classList.add('is-rolling');
+  dice3dStage.roll(values).then(() => {
+    if (token === dice3dToken) box.classList.remove('is-rolling');
+  });
+}
+
+function bindDice3d() {
+  const toggle = document.getElementById('dice3dToggle');
+  if (toggle) {
+    try {
+      const saved = localStorage.getItem(DICE3D_STORAGE_KEY);
+      if (saved !== null) toggle.checked = saved === '1';
+    } catch (e) { /* storage unavailable: keep default (on) */ }
+    toggle.addEventListener('change', () => {
+      try { localStorage.setItem(DICE3D_STORAGE_KEY, toggle.checked ? '1' : '0'); } catch (e) { /* ignore */ }
+      if (!toggle.checked) play3dRoll([]);
+    });
+  }
+  const link = document.getElementById('dice3dPageLink');
+  if (link) {
+    link.addEventListener('click', () => {
+      const params = new URLSearchParams({
+        pool: String(Math.max(1, parseInt(document.getElementById('dicePoolInput').value, 10) || 1)),
+        diff: document.getElementById('diceDiffInput').value || '6'
+      });
+      if (document.getElementById('diceSpecialtyToggle').checked) params.set('spec', '1');
+      if (document.getElementById('diceWillpowerToggle').checked) params.set('wp', '1');
+      link.href = './dice3d.html?' + params.toString();
+    });
+  }
 }
 
 function renderRollHistory() {
@@ -3844,7 +3870,7 @@ function renderRollHistory() {
   list.innerHTML = diceRollHistory.map((item, idx) => `
     <div class="dice-history-item">
       <span class="dice-history-text" title="${escapeHtmlForDice(item.summary)}">
-        <strong>${escapeHtmlForDice(item.traitDesc)}:</strong> <span class="${item.outcomeClass}">${escapeHtmlForDice(item.outcomeLabel)}</span>
+        ${item.at ? `<time class="dice-history-time" datetime="${new Date(item.at).toISOString()}">${new Date(item.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>` : ''}<strong>${escapeHtmlForDice(item.traitDesc)}:</strong> <span class="${item.outcomeClass}">${escapeHtmlForDice(item.outcomeLabel)}</span>
       </span>
       <button type="button" class="btn btn-sm copy-hist-btn" data-idx="${idx}" style="padding:1px 6px; font-size:10px;">Copy</button>
     </div>
@@ -3924,6 +3950,16 @@ function bindDiceRoller() {
   document.getElementById('rollDiceBtn').addEventListener('click', executeWodRoll);
   const initBtn = document.getElementById('rollInitiativeBtn');
   if (initBtn) initBtn.addEventListener('click', executeInitiativeRoll);
+  const initWoundToggle = document.getElementById('diceInitWoundToggle');
+  if (initWoundToggle) {
+    try {
+      const saved = localStorage.getItem(INIT_WOUND_STORAGE_KEY);
+      if (saved !== null) initWoundToggle.checked = saved === '1';
+    } catch (e) { /* storage unavailable: keep default (on) */ }
+    initWoundToggle.addEventListener('change', () => {
+      try { localStorage.setItem(INIT_WOUND_STORAGE_KEY, initWoundToggle.checked ? '1' : '0'); } catch (e) { /* ignore */ }
+    });
+  }
 
   document.getElementById('copyLastRollBtn').addEventListener('click', () => {
     if (lastRollClipboardText && navigator.clipboard) {
@@ -3940,7 +3976,9 @@ function bindDiceRoller() {
   });
   document.getElementById('clearRollLogBtn').addEventListener('click', () => {
     diceRollHistory = [];
+    saveRollHistory();
     renderRollHistory();
+    showToast('Roll history cleared');
   });
 
   const reflexiveIds = ['_wp_dots', '_faith_dots', '_humanity_dots', '_path_dots', '_rage_dots', '_gnosis_dots', '_arete_dots', '_glamour_dots', '_banality_dots', '_corpus_dots', '_psyche_wp', '_angst'];
@@ -4036,11 +4074,51 @@ function bindDiceRoller() {
 
 
 function registerServiceWorker() {
-  if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.protocol === 'http:')) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
-    });
-  }
+  if (!('serviceWorker' in navigator) || !/^https?:$/.test(window.location.protocol)) return;
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js');
+      const hadController = Boolean(navigator.serviceWorker.controller);
+      const offerUpdate = (worker) => {
+        if (!worker || !hadController) return;
+        showUpdateBanner(() => worker.postMessage({ type: 'SKIP_WAITING' }));
+      };
+      if (reg.waiting) offerUpdate(reg.waiting);
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed') offerUpdate(nw);
+        });
+      });
+      let reloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloading || !hadController) return;
+        reloading = true;
+        flushAutoSave();
+        window.location.reload();
+      });
+      // check for a new version when the tab comes back into view
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
+    } catch (e) {
+      console.warn('Service worker registration failed:', e);
+    }
+  });
+}
+
+function showUpdateBanner(onReload) {
+  if (document.getElementById('updateBanner')) return;
+  const bar = document.createElement('div');
+  bar.id = 'updateBanner';
+  bar.className = 'update-banner no-print';
+  bar.setAttribute('role', 'status');
+  bar.innerHTML = '<span>A new version is ready.</span><button type="button" class="btn btn-sm btn-accent">Reload</button><button type="button" class="btn btn-sm" aria-label="Dismiss">Later</button>';
+  const [reloadBtn, laterBtn] = bar.querySelectorAll('button');
+  reloadBtn.addEventListener('click', () => { reloadBtn.disabled = true; onReload(); });
+  laterBtn.addEventListener('click', () => bar.remove());
+  document.body.appendChild(bar);
 }
 
 function bindGuide() {

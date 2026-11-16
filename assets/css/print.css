@@ -1,0 +1,190 @@
+/* Paper layout. Loaded last so it settles any earlier print rules.
+   Plain-text copies of fields (.print-mirror) are made by print-prep.js just before printing. */
+
+.print-mirror { display: none; }
+
+@media print {
+  /* Zero page margins leave no room for the browser's own date/URL header and footer;
+     the sheet supplies its own margins, repeated on every page. */
+  @page { size: auto; margin: 0; }
+
+  html, body, body[data-theme] { background: #fff !important; }
+  body { padding: 0 !important; color: #111 !important; font-size: 10.5px; }
+
+  .sheet-wrapper,
+  body[data-theme] .sheet-wrapper {
+    background: #fff !important; border: none !important; box-shadow: none !important;
+    padding: 10mm 13mm 5mm !important;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+    max-width: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* ---------- headings ---------- */
+  .wod-header { margin-bottom: 9px !important; break-after: avoid; page-break-after: avoid; }
+  .wod-header h2 {
+    font-size: 21px !important; letter-spacing: 6px !important; font-weight: 700 !important;
+    color: #111 !important; line-height: 1.15;
+  }
+  .wod-divider { height: 0.75px !important; background: #111 !important; margin: 7px 0 10px !important; }
+  .wod-divider::after {
+    content: "\2666" !important; top: -6px !important; font-size: 8px !important;
+    padding: 0 8px !important; letter-spacing: 0 !important;
+  }
+  .section-title {
+    font-size: 11px !important; letter-spacing: 3.5px !important; font-weight: 700 !important;
+    border-bottom: 0.75px solid #111 !important; margin: 4px 0 7px !important; padding-bottom: 2px !important;
+  }
+  .section-title-sm, .pool-title {
+    font-size: 9.5px !important; letter-spacing: 1.6px !important; font-weight: 700 !important;
+  }
+  .section-title-sm, .section-header-flex { border-bottom: 0.75px solid #111 !important; margin-bottom: 5px !important; }
+  .section-header-flex .section-title-sm { border-bottom: none !important; margin-bottom: 0 !important; }
+  .pool-title { border-bottom: 0.75px solid #bbb !important; margin-bottom: 6px !important; }
+  .sub-col-title { font-size: 11.5px !important; }
+  .text-label { font-size: 11px !important; }
+
+  /* Keep each heading with what follows, and each block in one piece. */
+  .section-title, .section-title-sm, .section-header-flex, .pool-title, .sub-col-title {
+    break-after: avoid; page-break-after: avoid;
+  }
+  .row, .sheet-card-block, .pool-box, .armor-block, .wraith-shadow-block,
+  .portrait-box, .pdf-share-container, .dark-pack-footer, .print-mirror.pm-area {
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  /* A heading reserves room for the start of its content: if less than that is left on
+     the page, the heading moves to the next page with it. The negative margin takes the
+     reserved space back, so nothing shifts on screen-paper. */
+  .sheet-wrapper .splat-container .wod-header {
+    break-inside: avoid; page-break-inside: avoid;
+    padding-bottom: 30mm !important; margin-bottom: calc(9px - 30mm) !important;
+  }
+  .sheet-wrapper .splat-container .section-title {
+    break-inside: avoid; page-break-inside: avoid;
+    padding-bottom: calc(16mm + 2px) !important; margin-bottom: calc(7px - 16mm) !important;
+    border-bottom: none !important; /* the rule is drawn at the text, not under the reserve */
+    background: linear-gradient(#111, #111) no-repeat 0 calc(100% - 16mm) / 100% 0.75px !important;
+  }
+  .row { gap: 14px !important; margin-bottom: 7px !important; }
+  .mage-wheel-ring { width: 150px !important; height: 150px !important; }
+  .pool-box, .armor-block, .wraith-shadow-block { margin-bottom: 11px !important; }
+
+  /* Full layout: Mechanics starts page 2 and Backgrounds & Gear follows it on the same
+     page; Description & History starts page 3. */
+  .wod-header.page-break-before { margin-top: 0 !important; }
+  .wod-header.page-break-before.print-flow {
+    break-before: auto !important; page-break-before: auto !important; margin-top: 7mm !important;
+  }
+  body.print-compact .wod-header.page-break-before,
+  body.mode-compact .wod-header.page-break-before ~ .wod-header.page-break-before { margin-top: 5mm !important; }
+
+  /* ---------- text fields: the source field hides, its copy wraps ---------- */
+  .pm-src,
+  .trait-row .trait-spec-input.pm-src:not(:placeholder-shown) { display: none !important; }
+  .print-mirror { display: block; color: #111; overflow-wrap: anywhere; word-break: normal; }
+
+  .print-mirror.pm-field {
+    flex: 1 1 auto; min-width: 0; font-size: 10.5px; line-height: 1.3;
+    padding: 0 2px 1px; border-bottom: 0.75px solid #999;
+  }
+  .text-row { align-items: flex-end !important; }
+  .pool-box > .print-mirror.pm-field { width: 100%; text-align: center; }
+
+  .print-mirror.pm-name {
+    flex: 1 1 auto; min-width: 0; font-size: 10px; line-height: 1.2;
+    padding: 0 2px 1px; border-bottom: 0.75px solid #999;
+  }
+  .trait-flex-row { align-items: flex-end !important; }
+  .trait-flex-row .dots-container { padding-bottom: 1px; }
+
+  .trait-row .trait-label { flex: 0 0 auto; font-size: 10.5px !important; }
+  body.mode-10-dot .dot { width: 7.5px !important; height: 7.5px !important; }
+  body.mode-10-dot .dots-container { gap: 1px !important; padding-left: 3px !important; }
+  body.mode-10-dot .dots-container .dot[data-idx="6"] { margin-left: 3px !important; }
+  .trait-row:has(.pm-spec) .trait-leader { margin: 0 3px !important; min-width: 4px !important; }
+  .print-mirror.pm-spec {
+    flex: 0 1 auto; min-width: 0; margin: 0 1px 0 4px; overflow-wrap: break-word; hyphens: auto; -webkit-hyphens: auto;
+    font-size: 8px; line-height: 1.1; font-style: italic; color: #555;
+  }
+  .trait-row .trait-leader { flex: 1 1 6px !important; min-width: 6px !important; margin: 0 5px !important; }
+
+  .print-mirror.pm-cell { padding: 2px 3px; font-size: 9.5px; line-height: 1.25; }
+
+  .print-mirror.pm-area {
+    white-space: pre-wrap; font-size: 10px; line-height: 1.45;
+    padding: 5px 8px; min-height: 12mm;
+    border: 0.75px solid #bbb; border-radius: 3px;
+  }
+  /* Empty notes boxes print as faint ruled lines to write on. */
+  .print-mirror.pm-area.pm-empty {
+    min-height: 14mm; padding: 0;
+    background: repeating-linear-gradient(to bottom, transparent 0 6.6mm, #e2e2e2 6.6mm 6.85mm) !important;
+    background-origin: content-box !important;
+  }
+  /* Page 3 has room: blank History and Description get more lines to write on. */
+  .print-mirror.pm-area.pm-empty[data-field="history"],
+  .print-mirror.pm-area.pm-empty[data-field="desc"] { min-height: 40mm; }
+  body.print-compact .print-mirror.pm-area.pm-empty[data-field="history"],
+  body.print-compact .print-mirror.pm-area.pm-empty[data-field="desc"],
+  body.mode-compact .print-mirror.pm-area.pm-empty[data-field="history"],
+  body.mode-compact .print-mirror.pm-area.pm-empty[data-field="desc"] { min-height: 14mm; }
+  /* Visuals & Notes sits beside the portrait: match its height. */
+  .row:has(.portrait-box) .print-mirror.pm-area { min-height: 64mm; }
+  body.print-compact .row:has(.portrait-box) .print-mirror.pm-area,
+  body.mode-compact .row:has(.portrait-box) .print-mirror.pm-area { min-height: 36mm; }
+  body.print-compact .print-mirror.pm-area,
+  body.mode-compact .print-mirror.pm-area { font-size: 9.5px; padding: 3px 6px; min-height: 8mm; }
+  body.print-compact .print-mirror.pm-area.pm-empty,
+  body.mode-compact .print-mirror.pm-area.pm-empty { min-height: 10mm; padding: 0; }
+
+  /* ---------- portrait ---------- */
+  .portrait-box {
+    height: 64mm !important; background: #fff !important;
+    border: 0.75px solid #bbb !important; border-radius: 3px; color: #999 !important;
+  }
+  .portrait-box img { width: 100%; height: 100%; object-fit: cover; }
+  .portrait-box.pm-portrait-empty { border-style: dashed !important; }
+  .portrait-box.pm-portrait-empty::after {
+    content: "Portrait"; font-family: var(--font-serif); font-style: italic; font-size: 10px; color: #aaa;
+  }
+  body.print-compact .portrait-box, body.mode-compact .portrait-box { height: 36mm !important; }
+
+  /* ---------- link back to the live sheet ---------- */
+  .pdf-share-container {
+    border-top: none !important; margin-top: 7mm !important; padding-top: 0 !important;
+    justify-content: center !important;
+  }
+  .pdf-share-btn {
+    background: transparent !important; color: #111 !important;
+    border: 0.75px solid #111 !important; border-radius: 999px !important;
+    padding: 4px 13px !important; gap: 6px !important;
+    font-family: var(--font-sans) !important; font-size: 8.5px !important;
+    font-weight: 600 !important; letter-spacing: 1.4px !important;
+  }
+  .pdf-share-btn svg { width: 10px; height: 10px; }
+
+  /* ---------- licence notice: compact, still complete ---------- */
+  .dark-pack-footer {
+    margin: 6mm 13mm 0 !important; padding: 4mm 0 11mm !important;
+    border-top: 0.75px solid #bbb !important; background: #fff !important;
+  }
+  .dark-pack-footer .footer-content {
+    flex-direction: row !important; align-items: center !important;
+    gap: 5mm !important; max-width: none !important; text-align: left !important;
+  }
+  .dark-pack-footer .footer-content > a { flex: 0 0 auto; line-height: 0; }
+  .dark-pack-logo { width: 22mm !important; max-width: 22mm !important; opacity: 1 !important; }
+  .dark-pack-footer .footer-text p {
+    margin: 0 0 2px !important; font-size: 8.5px !important; line-height: 1.4 !important; color: #444 !important;
+  }
+  .dark-pack-footer .footer-text a { color: #111 !important; }
+  body.print-compact .pdf-share-container, body.mode-compact .pdf-share-container { margin-top: 4mm !important; }
+  body.print-compact .dark-pack-footer, body.mode-compact .dark-pack-footer { margin-top: 3mm !important; padding: 3mm 0 8mm !important; }
+  body.print-compact .dark-pack-logo, body.mode-compact .dark-pack-logo { width: 18mm !important; max-width: 18mm !important; }
+}
+
+/* US Letter is 18 mm shorter than A4: scale the compact layout a touch more there. */
+@media print and (max-height: 285mm) {
+  body.print-compact .sheet-wrapper { zoom: 0.78; }
+}

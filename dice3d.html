@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>3D Storyteller Dice</title>
+  <meta name="description" content="Free, unofficial 3D d10 roller for World of Darkness 20th Anniversary Edition: dice pool, difficulty, specialty and Willpower.">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#121212">
+  <meta property="og:title" content="3D Storyteller Dice">
+  <meta property="og:description" content="Free, unofficial 3D d10 roller for World of Darkness 20th Anniversary Edition.">
+  <meta property="og:image" content="https://wod20-charsheet-tool.vercel.app/assets/img/og-card.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="./assets/img/icon-192.png">
+  <link rel="apple-touch-icon" href="./assets/img/icon-192.png">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./assets/css/dice3d.css">
+</head>
+<body>
+  <header class="d3-bar">
+    <a class="d3-back" href="./index.html">&larr; Character sheet</a>
+    <h1>3D Storyteller Dice</h1>
+  </header>
+
+  <main class="d3-main">
+    <section class="d3-stage-wrap" aria-label="Dice tray">
+      <canvas id="d3Canvas" class="d3-canvas" role="img" aria-label="No dice rolled yet"></canvas>
+      <div class="d3-result" id="d3Result" aria-live="polite">
+        <span class="d3-outcome" id="d3Outcome">Set a pool and roll</span>
+        <span class="d3-detail" id="d3Detail"></span>
+      </div>
+    </section>
+
+    <section class="d3-controls" aria-label="Roll settings">
+      <div class="d3-field">
+        <label for="d3Pool">Dice pool</label>
+        <div class="d3-stepper">
+          <button type="button" data-step="pool:-1" aria-label="One less die">&minus;</button>
+          <input type="number" id="d3Pool" min="1" max="50" value="5" inputmode="numeric">
+          <button type="button" data-step="pool:1" aria-label="One more die">+</button>
+        </div>
+      </div>
+
+      <div class="d3-field">
+        <label for="d3Diff">Difficulty</label>
+        <div class="d3-stepper">
+          <button type="button" data-step="diff:-1" aria-label="Lower difficulty">&minus;</button>
+          <input type="number" id="d3Diff" min="2" max="10" value="6" inputmode="numeric">
+          <button type="button" data-step="diff:1" aria-label="Raise difficulty">+</button>
+        </div>
+        <div class="d3-presets" role="group" aria-label="Difficulty presets">
+          <button type="button" data-diff="4">4</button>
+          <button type="button" data-diff="5">5</button>
+          <button type="button" data-diff="6">6</button>
+          <button type="button" data-diff="7">7</button>
+          <button type="button" data-diff="8">8</button>
+          <button type="button" data-diff="9">9</button>
+          <button type="button" data-diff="10">10</button>
+        </div>
+      </div>
+
+      <label class="d3-check"><input type="checkbox" id="d3Spec"> Specialty <small>(10s = 2 successes)</small></label>
+      <label class="d3-check"><input type="checkbox" id="d3Wp"> Spend Willpower <small>(+1 automatic, no botch)</small></label>
+
+      <button type="button" class="d3-roll" id="d3RollBtn">Roll <span id="d3RollCount">5</span>d10</button>
+      <p class="d3-hint">Press <kbd>R</kbd> or <kbd>Space</kbd> to roll.</p>
+
+      <div class="d3-history-head">
+        <h2>Recent rolls</h2>
+        <button type="button" id="d3ClearBtn" class="d3-link-btn">Clear</button>
+      </div>
+      <ol class="d3-history" id="d3History"></ol>
+    </section>
+  </main>
+
+  <footer class="d3-footer">
+    <a href="https://www.paradoxinteractive.com/games/world-of-darkness/community/dark-pack-agreement" target="_blank" rel="noopener noreferrer"><img src="./assets/img/dark_pack_logo.png" alt="World of Darkness Dark Pack Logo" class="d3-logo"></a>
+    <p>Portions of the materials are the copyrights and trademarks of Paradox Interactive AB, and are used with permission. All rights reserved. For more information please visit <a href="https://worldofdarkness.com" target="_blank" rel="noopener noreferrer">worldofdarkness.com</a>.</p>
+    <p>This is an unofficial fan creation and not official World of Darkness material. It is not affiliated with or endorsed by Paradox Interactive. Free to use; no part of this tool is sold. Privacy: no accounts, analytics or cookies; rolls stay in this browser.</p>
+  </footer>
+
+  <script type="module" src="./assets/js/dice3d-page.js"></script>
+</body>
+</html>

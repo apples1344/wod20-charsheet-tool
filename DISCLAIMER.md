@@ -1,6 +1,6 @@
 # Disclaimer & Non-Commercial Release
 
-This repository is a free, unofficial fan hobby project and is not affiliated with, endorsed, or supported by Paradox Interactive AB or World of Darkness.
+This repository is a free, unofficial fan hobby project and not official World of Darkness material. It is not affiliated with, endorsed, or supported by Paradox Interactive AB.
 
 ## 1. No Ownership Claimed
 The creator of this repository claims no ownership or rights over any World of Darkness intellectual property, game mechanics, terminology, branding, or trademarks in this project.
@@ -19,3 +19,6 @@ To the extent the creator holds any rights in the original HTML, CSS, and JavaSc
 THIS PROJECT IS PROVIDED STRICTLY "AS IS", WITHOUT WARRANTY OF ANY KIND.
 - **No Updates or Support:** This is a hobbyist release. The creator has zero obligation to update, fix, maintain, or support this project.
 - **No Liability:** The creator assumes zero responsibility or liability for any damages, data loss, IP disputes, takedown notices, or legal claims arising from the use, hosting, copying, or modification of this project by any third party.
+
+## 4. Takedown & Contact
+If Paradox Interactive AB, or anyone acting for them, asks for any part of this project (or all of it) to be changed, removed or taken down, the creator will do so promptly. Contact: theapples1344@gmail.com
